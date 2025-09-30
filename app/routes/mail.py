@@ -164,7 +164,8 @@ def read_mail(email_id):
     try:
         # メール情報を取得
         email_data = safe_database_query("""
-            SELECT e.*, 
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at,
                    sender.username as sender_name,
                    recipient.username as recipient_name
             FROM emails e 
@@ -177,61 +178,57 @@ def read_mail(email_id):
             flash('メールが見つかりません', 'error')
             return redirect('/mail/inbox')
         
-        # 既読フラグを更新
-        if email_data['recipient_id'] == user_id:
+        # 受信メールの場合、既読フラグを更新
+        if email_data.get('recipient_id') == user_id and not email_data.get('is_read'):
             safe_database_query(
                 "UPDATE emails SET is_read = TRUE WHERE id = %s", 
                 (email_id,)
             )
         
-        return render_template('mail/read.html', email=email_data)
+        # テンプレート互換性のため配列形式に変換
+        email_array = [
+            email_data.get('id', 0),                    # [0] - メールID
+            email_data.get('sender_id', 0),             # [1] - 送信者ID
+            email_data.get('recipient_id', 0),          # [2] - 受信者ID
+            email_data.get('subject', ''),              # [3] - 件名
+            email_data.get('body', ''),                 # [4] - 本文
+            email_data.get('is_read', False),           # [5] - 既読フラグ
+            email_data.get('created_at', ''),           # [6] - 作成日時
+            email_data.get('attachment_path', ''),      # [7] - 添付ファイルパス
+            email_data.get('sender_name', ''),          # [8] - 送信者名
+            email_data.get('recipient_name', ''),       # [9] - 受信者名
+        ]
         
-    except Exception as e:
-        flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
-        return redirect('/mail/inbox')
-        cursor = conn.cursor()
+        return render_template('mail/read.html', email=email_array)
         
-        # メールを取得
-        cursor.execute("""
-            SELECT e.*, u.username as sender_name
-            FROM emails e 
-            JOIN users u ON e.sender_id = u.id 
-            WHERE e.id = ? AND (e.recipient_id = ? OR e.sender_id = ?)
-        """, (email_id, user_id, user_id))
-        
-        email = cursor.fetchone()
-        
-        if email:
-            # 添付ファイルを取得
-            cursor.execute("""
-                SELECT * FROM email_attachments WHERE email_id = ?
-            """, (email_id,))
-            
-            attachments = cursor.fetchall()
-            
-            # 既読マーク (受信者の場合)
-            if email[2] == user_id:  # recipient_id
-                cursor.execute("UPDATE emails SET is_read = 1 WHERE id = ?", (email_id,))
-                conn.commit()
-            
-            return render_template('mail/read.html', email=email, attachments=attachments)
-        else:
-            flash('メールが見つかりません', 'error')
-            return redirect('/mail/inbox')
     except Exception as e:
         flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/mail/inbox')
 
-@bp.route('/mail/attachment/<int:attachment_id>')
-def download_attachment(attachment_id):
-    """添付ファイルダウンロード (脆弱性含む)"""
+@bp.route('/mail/download/<int:email_id>')
+def download_attachment(email_id):
+    """添付ファイルダウンロード (Directory Traversal脆弱性)"""
     if 'user_id' not in session:
         return redirect('/login')
     
-    # 脆弱性: 添付ファイルの権限チェックなし
-    # 任意のファイルダウンロード可能
+    user_id = session['user_id']
+    
     try:
-        file_path = f"/tmp/attachment_{attachment_id}"
+        # メール情報を取得
+        email_data = safe_database_query("""
+            SELECT attachment_path FROM emails 
+            WHERE id = %s AND (sender_id = %s OR recipient_id = %s)
+        """, (email_id, user_id, user_id), fetch_one=True)
+        
+        if not email_data or not email_data.get('attachment_path'):
+            flash('添付ファイルが見つかりません', 'error')
+            return redirect('/mail/inbox')
+        
+        attachment_path = email_data.get('attachment_path')
+        
+        # 脆弱性: Directory Traversal対策なし
+        file_path = os.path.join(UPLOAD_FOLDER, os.path.basename(attachment_path))
+        
         if os.path.exists(file_path):
             return send_file(file_path, as_attachment=True)
         else:
