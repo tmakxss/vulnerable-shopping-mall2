@@ -64,21 +64,32 @@ def checkout():
     user_id = session['user_id']
     
     try:
-        cart_items = safe_database_query("""
+        cart_data = safe_database_query("""
             SELECT p.name, p.price, c.quantity, (p.price * c.quantity) as total
             FROM cart c 
             JOIN products p ON c.product_id = p.id 
             WHERE c.user_id = %s
         """, (user_id,), fetch_all=True)
         
-        print(f"DEBUG: cart_items = {cart_items}, type = {type(cart_items)}")
+        print(f"DEBUG: cart_data = {cart_data}, type = {type(cart_data)}")
         
-        if not cart_items:
+        if not cart_data:
             flash('カートが空です', 'error')
             return redirect('/cart')
         
-        # PostgreSQLからはdict形式で返される
-        total = sum(float(item['total']) for item in cart_items)
+        # カートアイテムを配列形式に変換（テンプレート互換性のため）
+        cart_items = []
+        for item in cart_data:
+            if isinstance(item, dict):
+                item_array = [
+                    item.get('name', ''),           # [0]: name
+                    item.get('price', 0.0),         # [1]: price  
+                    item.get('quantity', 0),        # [2]: quantity
+                    float(item.get('total', 0.0))   # [3]: total
+                ]
+                cart_items.append(item_array)
+        
+        total = sum(float(item[3]) for item in cart_items)
         print(f"DEBUG: total = {total}")
         
         return render_template('order/checkout.html', cart_items=cart_items, total=total)
