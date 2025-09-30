@@ -43,27 +43,27 @@ content %}
         <tbody>
                   {% for order in orders %}
         <tr>
+          <td>{{ order[0] }}</td>
           <td>{{ order[1] }}</td>
-          <td>{{ order[8] }}</td>
+          <td>{{ order[2] }}</td>
           <td>{{ order[3] }}</td>
-          <td>{{ order[4] }}</td>
-          <td>¥{{ "{:,}".format(order[5]|int) }}</td>
+          <td>¥{{ "{:,}".format(order[4]|int) }}</td>
           <td>
             <span
-              class="badge {% if order[6] == 'pending' %}bg-warning text-dark{% elif order[6] == 'shipped' %}bg-primary{% elif order[6] == 'delivered' %}bg-success{% elif order[6] == 'cancelled' %}bg-danger{% else %}bg-secondary{% endif %}"
+              class="badge {% if order[5] == 'pending' %}bg-warning text-dark{% elif order[5] == 'shipped' %}bg-primary{% elif order[5] == 'delivered' %}bg-success{% elif order[5] == 'cancelled' %}bg-danger{% else %}bg-secondary{% endif %}"
             >
-              {% if order[6] == 'pending' %}処理中{% elif order[6] == 'shipped' %}発送済み{% elif order[6] == 'delivered' %}配達済み{% elif order[6] == 'cancelled' %}キャンセル{% else %}{{ order[6] }}{% endif %}
+              {% if order[5] == 'pending' %}処理中{% elif order[5] == 'shipped' %}発送済み{% elif order[5] == 'delivered' %}配達済み{% elif order[5] == 'cancelled' %}キャンセル{% else %}{{ order[5] }}{% endif %}
             </span>
           </td>
-          <td>{{ order[7] }}</td>
+          <td>{{ order[6] }}</td>
           <td>
             <a
-              href="/admin/orders/edit/{{ order[1] }}"
+              href="/admin/orders/edit/{{ order[0] }}"
               class="btn btn-warning btn-sm"
               >編集</a
             >
             <a
-              href="/admin/orders/delete/{{ order[1] }}"
+              href="/admin/orders/delete/{{ order[0] }}"
               class="btn btn-danger btn-sm"
               onclick="return confirm('本当にこの注文を削除しますか？')"
               >削除</a
