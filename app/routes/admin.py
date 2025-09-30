@@ -78,14 +78,13 @@ def admin_users():
             for i, user in enumerate(all_users_raw or [], 1):
                 if isinstance(user, dict):
                     user_array = [
-                        i,  # row_num
-                        user.get('id', 0),
-                        user.get('username', ''),
-                        user.get('email', ''),
-                        user.get('address', ''),
-                        user.get('phone', ''),
-                        user.get('is_admin', False),
-                        user.get('created_at', '')
+                        user.get('id', 0),              # 0: ID
+                        user.get('username', ''),       # 1: ユーザー名
+                        user.get('email', ''),          # 2: メールアドレス
+                        user.get('address', ''),        # 3: 住所
+                        user.get('phone', ''),          # 4: 電話番号
+                        user.get('is_admin', False),    # 5: 管理者
+                        user.get('created_at', '')      # 6: 作成日
                     ]
                     all_users.append(user_array)
             
@@ -165,15 +164,15 @@ def edit_user(user_id):
             )
             
             if user_dict:
-                # dict形式をarray形式に変換
+                # dict形式をarray形式に変換 (テンプレートの期待順序に合わせる)
                 user = [
-                    user_dict.get('id', ''),
-                    user_dict.get('username', ''),
-                    user_dict.get('email', ''),
-                    user_dict.get('address', ''),
-                    user_dict.get('phone', ''),
-                    user_dict.get('is_admin', 0),
-                    user_dict.get('created_at', '')
+                    user_dict.get('id', ''),              # 0: ID
+                    user_dict.get('username', ''),        # 1: ユーザー名
+                    user_dict.get('email', ''),           # 2: メールアドレス
+                    user_dict.get('address', ''),         # 3: 住所
+                    user_dict.get('phone', ''),           # 4: 電話番号
+                    user_dict.get('is_admin', False),     # 5: 管理者
+                    user_dict.get('created_at', '')       # 6: 作成日
                 ]
                 return render_template('admin/edit_user.html', user=user)
             else:
@@ -196,9 +195,9 @@ def admin_orders():
             page = request.args.get('page', 1, type=int)
             per_page = 20
             
-            # 注文データを取得
+            # 注文データを取得 (支払い方法を追加)
             orders_raw = safe_database_query("""
-                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.created_at,
+                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.payment_method, o.created_at,
                        u.username
                 FROM orders o 
                 JOIN users u ON o.user_id = u.id 
@@ -210,13 +209,14 @@ def admin_orders():
             for order in orders_raw or []:
                 if isinstance(order, dict):
                     order_array = [
-                        order.get('id', 0),
-                        order.get('user_id', 0),
-                        order.get('total_amount', 0),
-                        order.get('status', ''),
-                        order.get('shipping_address', ''),
-                        order.get('created_at', ''),
-                        order.get('username', '')
+                        order.get('id', 0),                     # 0: 注文ID
+                        order.get('username', ''),              # 1: ユーザー名
+                        order.get('shipping_address', ''),      # 2: 配送先
+                        order.get('payment_method', ''),        # 3: 支払い方法
+                        order.get('total_amount', 0),           # 4: 合計金額
+                        order.get('status', ''),                # 5: ステータス
+                        order.get('created_at', ''),            # 6: 注文日
+                        order.get('user_id', 0)                 # 7: ユーザーID(非表示)
                     ]
                     all_orders.append(order_array)
             
@@ -266,16 +266,16 @@ def edit_order(order_id):
             )
             
             if order_dict:
-                # dict形式をarray形式に変換
+                # dict形式をarray形式に変換 (テンプレートの期待順序に合わせる)
                 order = [
-                    order_dict.get('id', ''),
-                    order_dict.get('user_id', ''),
-                    order_dict.get('total_amount', ''),
-                    order_dict.get('status', ''),
-                    order_dict.get('shipping_address', ''),
-                    order_dict.get('payment_method', ''),
-                    order_dict.get('created_at', ''),
-                    order_dict.get('username', '')
+                    order_dict.get('id', ''),                    # 0: ID
+                    order_dict.get('user_id', ''),               # 1: ユーザーID
+                    order_dict.get('username', ''),              # 2: ユーザー名
+                    order_dict.get('total_amount', ''),          # 3: 合計金額
+                    order_dict.get('status', ''),                # 4: ステータス
+                    order_dict.get('shipping_address', ''),      # 5: 配送先
+                    order_dict.get('payment_method', ''),        # 6: 支払い方法
+                    order_dict.get('created_at', '')             # 7: 作成日
                 ]
                 return render_template('admin/edit_order.html', order=order)
             else:
@@ -520,19 +520,18 @@ def admin_reviews():
             
             # PostgreSQLの結果をarray形式に変換
             all_reviews = []
-            if reviews_raw:
-                for i, review in enumerate(reviews_raw):
+            if reviews_raw and isinstance(reviews_raw, list) and len(reviews_raw) > 0:
+                for review in reviews_raw:
                     if isinstance(review, dict):
                         all_reviews.append([
-                            i + 1,  # row_num
-                            review.get('id', ''),
-                            review.get('user_id', ''),
-                            review.get('product_id', ''),
-                            review.get('rating', ''),
-                            review.get('comment', ''),
-                            review.get('created_at', ''),
-                            review.get('username', ''),
-                            review.get('product_name', '')
+                            review.get('id', ''),               # 0: レビューID
+                            review.get('username', ''),         # 1: ユーザー名
+                            review.get('product_name', ''),     # 2: 商品名
+                            review.get('rating', ''),           # 3: 評価
+                            review.get('comment', ''),          # 4: コメント
+                            review.get('created_at', ''),       # 5: 作成日
+                            review.get('user_id', ''),          # 6: ユーザーID(非表示)
+                            review.get('product_id', '')        # 7: 商品ID(非表示)
                         ])
             
             # ページング計算
