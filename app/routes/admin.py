@@ -192,31 +192,38 @@ def admin_orders():
             page = request.args.get('page', 1, type=int)
             per_page = 20
             
-            # 注文データを取得 (支払い方法を追加)
+            # 注文データを取得 (特定のカラムを選択)
             orders_raw = safe_database_query("""
-                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, 
-                       COALESCE(o.payment_method, '未設定') as payment_method, o.created_at,
-                       COALESCE(u.email, '不明') as username
+                SELECT o.id, o.user_id, o.total_amount, o.status, 
+                       COALESCE(o.shipping_address, '未設定') as shipping_address, 
+                       COALESCE(o.payment_method, '未設定') as payment_method, 
+                       o.created_at,
+                       COALESCE(u.email, '不明') as user_email
                 FROM orders o 
                 LEFT JOIN users u ON o.user_id = u.id 
                 ORDER BY o.created_at DESC
             """, fetch_all=True, default_value=[])
             
+            print(f"Orders raw data: {orders_raw}")  # デバッグ用
+            
             # テンプレート互換性のため配列形式に変換
             all_orders = []
-            for order in orders_raw or []:
-                if isinstance(order, dict):
-                    order_array = [
-                        order.get('id', 0),                     # 0: 注文ID
-                        order.get('username', ''),              # 1: ユーザー名
-                        order.get('shipping_address', ''),      # 2: 配送先
-                        order.get('payment_method', ''),        # 3: 支払い方法
-                        order.get('total_amount', 0),           # 4: 合計金額
-                        order.get('status', ''),                # 5: ステータス
-                        order.get('created_at', ''),            # 6: 注文日
-                        order.get('user_id', 0)                 # 7: ユーザーID(非表示)
-                    ]
-                    all_orders.append(order_array)
+            if orders_raw and isinstance(orders_raw, list):
+                for order in orders_raw:
+                    if isinstance(order, dict):
+                        order_array = [
+                            order.get('id', 0),                     # 0: 注文ID
+                            order.get('user_email', '不明'),        # 1: ユーザー名(メール)
+                            order.get('shipping_address', '未設定'), # 2: 配送先
+                            order.get('payment_method', '未設定'),   # 3: 支払い方法
+                            order.get('total_amount', 0),           # 4: 合計金額
+                            order.get('status', '未確定'),           # 5: ステータス
+                            order.get('created_at', ''),            # 6: 注文日
+                            order.get('user_id', 0)                 # 7: ユーザーID(非表示)
+                        ]
+                        all_orders.append(order_array)
+            
+            print(f"All orders processed: {len(all_orders)} orders")  # デバッグ用
             
             # ページング
             total = len(all_orders)
@@ -258,7 +265,7 @@ def edit_order(order_id):
             
             # 注文情報を取得
             order_dict = safe_database_query(
-                "SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, COALESCE(o.payment_method, '未設定') as payment_method, o.created_at, COALESCE(u.email, '不明') as username FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
+                "SELECT o.id, o.user_id, o.total_amount, o.status, COALESCE(o.shipping_address, '未設定') as shipping_address, COALESCE(o.payment_method, '未設定') as payment_method, o.created_at, COALESCE(u.email, '不明') as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
                 (order_id,),
                 fetch_one=True
             )
@@ -268,7 +275,7 @@ def edit_order(order_id):
                 order = [
                     order_dict.get('id', ''),                    # 0: ID
                     order_dict.get('user_id', ''),               # 1: ユーザーID
-                    order_dict.get('username', ''),              # 2: ユーザー名
+                    order_dict.get('user_email', ''),            # 2: ユーザー名(メール)
                     order_dict.get('total_amount', ''),          # 3: 合計金額
                     order_dict.get('status', ''),                # 4: ステータス
                     order_dict.get('shipping_address', ''),      # 5: 配送先
@@ -533,11 +540,11 @@ def admin_reviews():
                         ])
             
             # ページング計算
-            total = len(all_reviews)
-            total_pages = (total + per_page - 1) // per_page
+            total = len(all_reviews) if all_reviews else 0
+            total_pages = max(1, (total + per_page - 1) // per_page) if total > 0 else 1
             start_idx = (page - 1) * per_page
             end_idx = start_idx + per_page
-            reviews = all_reviews[start_idx:end_idx]
+            reviews = all_reviews[start_idx:end_idx] if all_reviews else []
             
             return render_template('admin/reviews.html', 
                                  reviews=reviews, 

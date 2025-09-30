@@ -47,17 +47,17 @@ content %}
           <td>{{ user[2] or '-' }}</td>
           <td>{{ user[3] or '-' }}</td>
           <td>{% if user[4] %}はい{% else %}いいえ{% endif %}</td>
+          <td>{{ user[4] or '-' }}</td>
+          <td>{% if user[4] %}はい{% else %}いいえ{% endif %}</td>
           <td>{{ user[5] or '-' }}</td>
-          <td>{% if user[7] %}はい{% else %}いいえ{% endif %}</td>
-          <td>{{ user[8] }}</td>
           <td>
             <a
-              href="/admin/users/edit/{{ user[1] }}"
+              href="/admin/users/edit/{{ user[0] }}"
               class="btn btn-warning btn-sm"
               >編集</a
             >
             <a
-              href="/admin/users/delete/{{ user[1] }}"
+              href="/admin/users/delete/{{ user[0] }}"
               class="btn btn-danger btn-sm"
               onclick="return confirm('本当に削除しますか？')"
               >削除</a
