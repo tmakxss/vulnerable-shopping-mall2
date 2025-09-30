@@ -43,25 +43,25 @@ content %}
                   {% for review in reviews %}
         <tr>
           <td>{{ review[0] }}</td>
-          <td>{{ review[8] }}</td>
-          <td>{{ review[7] }}</td>
+          <td>{{ review[2] }}</td>
+          <td>{{ review[1] }}</td>
             <td>
-              {% for i in range(review[4]) %}
+              {% for i in range(review[3]) %}
               <span class="text-warning">★</span>
-              {% endfor %} {% for i in range(5 - review[4]) %}
+              {% endfor %} {% for i in range(5 - review[3]) %}
               <span class="text-muted">☆</span>
               {% endfor %}
             </td>
-            <td>{{ review[5] | safe }}</td>
-            <td>{{ review[6] }}</td>
+            <td>{{ review[4] | safe }}</td>
+            <td>{{ review[5] }}</td>
             <td>
               <a
-                href="/admin/reviews/edit/{{ review[2] }}"
+                href="/admin/reviews/edit/{{ review[0] }}"
                 class="btn btn-warning btn-sm"
                 >編集</a
               >
               <a
-                href="/admin/reviews/delete/{{ review[2] }}"
+                href="/admin/reviews/delete/{{ review[0] }}"
                 class="btn btn-danger btn-sm"
                 onclick="return confirm('本当にこのレビューを削除しますか？')"
                 >削除</a

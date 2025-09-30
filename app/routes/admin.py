@@ -556,8 +556,6 @@ def admin_reviews():
                 page = 1
             per_page = 20
             
-            print(f"Review page request: page={page}, search={search}")  # デバッグ
-            
             if search:
                 reviews_raw = safe_database_query(f"""
                     SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
@@ -583,16 +581,17 @@ def admin_reviews():
             if reviews_raw and isinstance(reviews_raw, list) and len(reviews_raw) > 0:
                 for review in reviews_raw:
                     if isinstance(review, dict):
-                        all_reviews.append([
+                        review_array = [
                             review.get('id', ''),               # 0: レビューID
                             review.get('username', ''),         # 1: ユーザー名
                             review.get('product_name', ''),     # 2: 商品名
-                            review.get('rating', ''),           # 3: 評価
+                            int(review.get('rating', 0)) if review.get('rating') else 0,  # 3: 評価（整数）
                             review.get('comment', ''),          # 4: コメント
                             review.get('created_at', ''),       # 5: 作成日
                             review.get('user_id', ''),          # 6: ユーザーID(非表示)
                             review.get('product_id', '')        # 7: 商品ID(非表示)
-                        ])
+                        ]
+                        all_reviews.append(review_array)
             
             # ページング計算
             total = len(all_reviews) if all_reviews else 0
@@ -684,40 +683,31 @@ def delete_review(review_id):
     
     return "管理者権限が必要です"
 
-@bp.route('/admin/system')
-def system_info():
-    """システム情報 - Pingtest機能"""
+@bp.route('/admin/reviews/delete/<int:review_id>', methods=['GET'])
+def delete_review(review_id):
+    """レビュー削除"""
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        import subprocess
-        import platform
+        try:
+            safe_database_query(
+                "DELETE FROM reviews WHERE id = %s",
+                (review_id,)
+            )
+            flash('レビューを削除しました', 'success')
+        except Exception as e:
+            flash(f'レビュー削除エラー: {str(e)}', 'danger')
         
-        system_info = {
-            'os': platform.system(),
-            'platform': platform.platform(),
-            'python_version': platform.python_version(),
-            'cwd': os.getcwd(),
-            'files': os.listdir('.') if os.path.exists('.') else []
-        }
-        
-        # Pingテスト機能
-        ping_result = ""
-        target = request.args.get('target', '')
-        if target:
-            try:
-                # 脆弱性: コマンドインジェクション
-                result = subprocess.check_output(f'ping -c 4 {target}', shell=True, text=True, timeout=10)
-                ping_result = result
-            except Exception as e:
-                ping_result = f"Ping failed: {str(e)}"
-        
-        return render_template('admin/system.html', 
-                             system_info=system_info, 
-                             ping_result=ping_result,
-                             target=target)
+        return redirect('/admin/reviews')
     
     return "管理者権限が必要です"
+
+@bp.route('/admin/system')
+def admin_system():
+    """システム情報"""
+    user_id = request.cookies.get('user_id')
+    
+    if user_id == '1':
 
 
 
