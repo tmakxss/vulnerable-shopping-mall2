@@ -23,13 +23,24 @@ def checkout():
             return redirect('/checkout')
         
         try:
-            # 注文作成
+            # 注文作成（より確実な方法）
             print(f"DEBUG: Creating order for user_id={user_id}, shipping_address={shipping_address}, total_amount={total_amount}")
             
-            order_data = safe_database_query("""
+            # まず注文を作成
+            result = safe_database_query("""
                 INSERT INTO orders (user_id, shipping_address, total_amount, status, created_at) 
-                VALUES (%s, %s, %s, 'pending', CURRENT_TIMESTAMP) RETURNING id
-            """, (user_id, shipping_address, total_amount), fetch_one=True)
+                VALUES (%s, %s, %s, 'pending', CURRENT_TIMESTAMP)
+            """, (user_id, shipping_address, total_amount))
+            
+            print(f"DEBUG: Insert result = {result}")
+            
+            # 最後に挿入された注文IDを取得
+            order_data = safe_database_query("""
+                SELECT id FROM orders 
+                WHERE user_id = %s 
+                ORDER BY created_at DESC, id DESC 
+                LIMIT 1
+            """, (user_id,), fetch_one=True)
             
             print(f"DEBUG: order_data = {order_data}, type = {type(order_data)}")
             
@@ -58,14 +69,18 @@ def checkout():
                 
                 print(f"DEBUG: Adding order item - order_id={order_id}, product_id={item['product_id']}, quantity={item['quantity']}, price={price}")
                 
-                safe_database_query("""
+                result = safe_database_query("""
                     INSERT INTO order_items (order_id, product_id, quantity, price) 
                     VALUES (%s, %s, %s, %s)
                 """, (order_id, item['product_id'], item['quantity'], price))
+                
+                print(f"DEBUG: Order item insert result = {result}")
             
             # カートを空にする
-            safe_database_query("DELETE FROM cart WHERE user_id = %s", (user_id,))
+            cart_clear_result = safe_database_query("DELETE FROM cart WHERE user_id = %s", (user_id,))
+            print(f"DEBUG: Cart clear result = {cart_clear_result}")
             
+            print(f"DEBUG: Order creation completed successfully, order_id = {order_id}")
             flash('注文が完了しました', 'success')
             return redirect(f'/order/{order_id}')
             
