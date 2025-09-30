@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, request, session, redirect, flash,
 from app.utils import safe_database_query
 import json
 import os
+import subprocess
+import platform
 from datetime import datetime
 
 bp = Blueprint('admin', __name__)
@@ -110,13 +112,12 @@ def delete_user(user_id):
     """ユーザー削除"""
     is_admin = request.cookies.get('is_admin', '0')
     
-    if int(is_admin) > 0:
+    if is_admin.lower() in ['true', '1', 'yes']:
         try:
             # PostgreSQLでユーザー削除
             result = safe_database_query(
                 "DELETE FROM users WHERE id = %s",
-                (user_id,),
-                commit=True
+                (user_id,)
             )
             
             flash('ユーザーを削除しました', 'success')
@@ -132,7 +133,7 @@ def edit_user(user_id):
     """ユーザー編集"""
     is_admin = request.cookies.get('is_admin', '0')
     
-    if int(is_admin) > 0:
+    if is_admin.lower() in ['true', '1', 'yes']:
         try:
             if request.method == 'POST':
                 username = request.form.get('username')
@@ -145,14 +146,12 @@ def edit_user(user_id):
                 if new_password:
                     safe_database_query(
                         "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s, password=%s WHERE id=%s",
-                        (username, email, address, phone, is_admin_check, new_password, user_id),
-                        commit=True
+                        (username, email, address, phone, is_admin_check, new_password, user_id)
                     )
                 else:
                     safe_database_query(
                         "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s WHERE id=%s",
-                        (username, email, address, phone, is_admin_check, user_id),
-                        commit=True
+                        (username, email, address, phone, is_admin_check, user_id)
                     )
                 
                 flash('ユーザーを更新しました', 'success')
@@ -253,8 +252,7 @@ def edit_order(order_id):
                 
                 safe_database_query(
                     "UPDATE orders SET shipping_address=%s, payment_method=%s, total_amount=%s, status=%s WHERE id=%s",
-                    (shipping_address, payment_method, total_amount, status, order_id),
-                    commit=True
+                    (shipping_address, payment_method, total_amount, status, order_id)
                 )
                 
                 flash('注文を更新しました', 'success')
@@ -298,8 +296,7 @@ def delete_order(order_id):
         try:
             safe_database_query(
                 "DELETE FROM orders WHERE id = %s",
-                (order_id,),
-                commit=True
+                (order_id,)
             )
             
             flash('注文を削除しました', 'success')
@@ -378,8 +375,7 @@ def delete_product(product_id):
             # IDOR脆弱性: 権限チェックなしで削除
             safe_database_query(
                 "DELETE FROM products WHERE id = %s",
-                (product_id,),
-                commit=True
+                (product_id,)
             )
             
             flash('商品を削除しました', 'success')
@@ -415,8 +411,7 @@ def add_product():
                 
                 safe_database_query(
                     "INSERT INTO products (name, description, price, stock, category, image_url) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (name, description, price, stock, category, image_url),
-                    commit=True
+                    (name, description, price, stock, category, image_url)
                 )
                 
                 flash('商品を追加しました', 'success')
@@ -452,14 +447,12 @@ def edit_product(product_id):
                     image_url = f'/static/uploads/{filename}'
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s, image_url=%s WHERE id=%s",
-                        (name, description, price, stock, category, image_url, product_id),
-                        commit=True
+                        (name, description, price, stock, category, image_url, product_id)
                     )
                 else:
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s WHERE id=%s",
-                        (name, description, price, stock, category, product_id),
-                        commit=True
+                        (name, description, price, stock, category, product_id)
                     )
                 
                 flash('商品を更新しました', 'success')
@@ -527,18 +520,20 @@ def admin_reviews():
             
             # PostgreSQLの結果をarray形式に変換
             all_reviews = []
-            for i, review in enumerate(reviews_raw):
-                all_reviews.append([
-                    i + 1,  # row_num
-                    review.get('id', ''),
-                    review.get('user_id', ''),
-                    review.get('product_id', ''),
-                    review.get('rating', ''),
-                    review.get('comment', ''),
-                    review.get('created_at', ''),
-                    review.get('username', ''),
-                    review.get('product_name', '')
-                ])
+            if reviews_raw:
+                for i, review in enumerate(reviews_raw):
+                    if isinstance(review, dict):
+                        all_reviews.append([
+                            i + 1,  # row_num
+                            review.get('id', ''),
+                            review.get('user_id', ''),
+                            review.get('product_id', ''),
+                            review.get('rating', ''),
+                            review.get('comment', ''),
+                            review.get('created_at', ''),
+                            review.get('username', ''),
+                            review.get('product_name', '')
+                        ])
             
             # ページング計算
             total = len(all_reviews)
@@ -571,8 +566,7 @@ def edit_review(review_id):
                 
                 safe_database_query(
                     "UPDATE reviews SET rating=%s, comment=%s WHERE id=%s",
-                    (rating, comment, review_id),
-                    commit=True
+                    (rating, comment, review_id)
                 )
                 
                 flash('レビューを更新しました', 'success')
@@ -620,8 +614,7 @@ def delete_review(review_id):
         try:
             safe_database_query(
                 "DELETE FROM reviews WHERE id = %s",
-                (review_id,),
-                commit=True
+                (review_id,)
             )
             
             flash('レビューを削除しました', 'success')
@@ -629,6 +622,42 @@ def delete_review(review_id):
         except Exception as e:
             flash(f'レビュー削除エラー: {str(e)}', 'danger')
             return redirect('/admin/reviews')
+    
+    return "管理者権限が必要です"
+
+@bp.route('/admin/system')
+def system_info():
+    """システム情報 - Pingtest機能"""
+    user_id = request.cookies.get('user_id')
+    
+    if user_id == '1':
+        import subprocess
+        import platform
+        
+        system_info = {
+            'os': platform.system(),
+            'platform': platform.platform(),
+            'python_version': platform.python_version(),
+            'cwd': os.getcwd(),
+            'env_vars': dict(os.environ),
+            'files': os.listdir('.') if os.path.exists('.') else []
+        }
+        
+        # Pingテスト機能
+        ping_result = ""
+        target = request.args.get('target', '')
+        if target:
+            try:
+                # 脆弱性: コマンドインジェクション
+                result = subprocess.check_output(f'ping -c 4 {target}', shell=True, text=True, timeout=10)
+                ping_result = result
+            except Exception as e:
+                ping_result = f"Ping failed: {str(e)}"
+        
+        return render_template('admin/system.html', 
+                             system_info=system_info, 
+                             ping_result=ping_result,
+                             target=target)
     
     return "管理者権限が必要です"
 
