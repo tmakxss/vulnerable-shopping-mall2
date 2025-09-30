@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, session, redirect, flash, jsonify, make_response
-import sqlite3
+from app.utils import safe_database_query
 import os
 import subprocess
 import pickle
@@ -15,36 +15,37 @@ def admin_dashboard():
     """管理者ダッシュボード"""
     # 脆弱な権限検証
     user_id = request.cookies.get('user_id')
-    is_admin = request.cookies.get('is_admin', '0')
+    is_admin = request.cookies.get('is_admin', 'false')
     role = request.cookies.get('role', 'user')
     
     # 権限検証 (隠しパラメータによる権限昇格脆弱性デモ)
-    if int(is_admin) > 0:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 統計情報
-        cursor.execute("SELECT COUNT(*) FROM users")
-        user_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM orders")
-        order_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM products")
-        product_count = cursor.fetchone()[0]
-        
-        cursor.execute("SELECT COUNT(*) FROM reviews")
-        review_count = cursor.fetchone()[0]
-        
-        conn.close()
-        
-        return render_template('admin/dashboard.html', 
-                             user_count=user_count,
-                             order_count=order_count,
-                             product_count=product_count,
-                             review_count=review_count,
-                             current_role=role,
-                             is_admin=is_admin)
+    # PostgreSQL BOOLEAN型対応
+    admin_check = is_admin.lower() in ['true', '1', 'yes']
+    
+    if admin_check:
+        try:
+            # 統計情報をPostgreSQLから取得
+            user_count = safe_database_query("SELECT COUNT(*) FROM users", fetch_one=True)
+            user_count = user_count[0] if user_count else 0
+            
+            order_count = safe_database_query("SELECT COUNT(*) FROM orders", fetch_one=True)
+            order_count = order_count[0] if order_count else 0
+            
+            product_count = safe_database_query("SELECT COUNT(*) FROM products", fetch_one=True)
+            product_count = product_count[0] if product_count else 0
+            
+            review_count = safe_database_query("SELECT COUNT(*) FROM reviews", fetch_one=True)
+            review_count = review_count[0] if review_count else 0
+            
+            return render_template('admin/dashboard.html', 
+                                 user_count=user_count,
+                                 order_count=order_count,
+                                 product_count=product_count,
+                                 review_count=review_count,
+                                 current_role=role,
+                                 is_admin=is_admin)
+        except Exception as e:
+            return f"管理者ダッシュボードのロード中にエラーが発生しました: {str(e)}"
     else:
         return "管理者権限が必要です"
 
