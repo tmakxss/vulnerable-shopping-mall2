@@ -69,31 +69,6 @@ def compose_mail():
             flash(f'メールの送信中にエラーが発生しました: {str(e)}', 'error')
     
     return render_template('mail/compose.html')
-                            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                            
-                            # ファイル保存
-                            file.save(file_path)
-                            
-                            # データベースに添付ファイル情報を保存
-                            cursor.execute("""
-                                INSERT INTO email_attachments 
-                                (email_id, original_filename, stored_filename, file_path, file_size, mime_type) 
-                                VALUES (?, ?, ?, ?, ?, ?)
-                            """, (email_id, original_filename, stored_filename, file_path, 
-                                  os.path.getsize(file_path), file.content_type))
-                
-                conn.commit()
-                flash('メールを送信しました', 'success')
-                return redirect('/mail/inbox')
-            else:
-                flash('受信者が見つかりません', 'error')
-        except Exception as e:
-            flash(f'メールの送信中にエラーが発生しました: {str(e)}', 'error')
-        finally:
-            if conn:
-                conn.close()
-    
-    return render_template('mail/compose.html')
 
 @bp.route('/mail/inbox')
 def inbox():
@@ -102,22 +77,22 @@ def inbox():
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = None
+    
     try:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 受信メールを取得 (添付ファイル数含む)
-        cursor.execute("""
-            SELECT e.*, u.username as sender_name,
-                   (SELECT COUNT(*) FROM email_attachments WHERE email_id = e.id) as attachment_count
+        # 受信メールを取得
+        emails_data = safe_database_query("""
+            SELECT e.*, u.username as sender_name
             FROM emails e 
             JOIN users u ON e.sender_id = u.id 
-            WHERE e.recipient_id = ? 
+            WHERE e.recipient_id = %s 
             ORDER BY e.created_at DESC
-        """, (user_id,))
+        """, (user_id,), fetch_all=True)
         
-        emails = cursor.fetchall()
+        return render_template('mail/inbox.html', emails=emails_data)
+        
+    except Exception as e:
+        flash(f'受信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
+        return render_template('mail/inbox.html', emails=[])
         return render_template('mail/inbox.html', emails=emails)
     except Exception as e:
         flash(f'メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
@@ -133,40 +108,59 @@ def sent_mail():
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = None
+    
     try:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 送信メールを取得 (添付ファイル数含む)
-        cursor.execute("""
-            SELECT e.*, u.username as recipient_name,
-                   (SELECT COUNT(*) FROM email_attachments WHERE email_id = e.id) as attachment_count
+        # 送信メールを取得
+        emails_data = safe_database_query("""
+            SELECT e.*, u.username as recipient_name
             FROM emails e 
             JOIN users u ON e.recipient_id = u.id 
-            WHERE e.sender_id = ? 
+            WHERE e.sender_id = %s 
             ORDER BY e.created_at DESC
-        """, (user_id,))
+        """, (user_id,), fetch_all=True)
         
-        emails = cursor.fetchall()
-        return render_template('mail/sent.html', emails=emails)
+        return render_template('mail/sent.html', emails=emails_data)
+        
     except Exception as e:
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
-        return redirect('/')
-    finally:
-        if conn:
-            conn.close()
+        return render_template('mail/sent.html', emails=[])
 
 @bp.route('/mail/read/<int:email_id>')
 def read_mail(email_id):
-    """メール読み取り (添付ファイル含む)"""
+    """メール読み取り"""
     if 'user_id' not in session:
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = None
+    
     try:
-        conn = sqlite3.connect('database/shop.db')
+        # メール情報を取得
+        email_data = safe_database_query("""
+            SELECT e.*, 
+                   sender.username as sender_name,
+                   recipient.username as recipient_name
+            FROM emails e 
+            JOIN users sender ON e.sender_id = sender.id 
+            JOIN users recipient ON e.recipient_id = recipient.id 
+            WHERE e.id = %s AND (e.sender_id = %s OR e.recipient_id = %s)
+        """, (email_id, user_id, user_id), fetch_one=True)
+        
+        if not email_data:
+            flash('メールが見つかりません', 'error')
+            return redirect('/mail/inbox')
+        
+        # 既読フラグを更新
+        if email_data['recipient_id'] == user_id:
+            safe_database_query(
+                "UPDATE emails SET is_read = TRUE WHERE id = %s", 
+                (email_id,)
+            )
+        
+        return render_template('mail/read.html', email=email_data)
+        
+    except Exception as e:
+        flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
+        return redirect('/mail/inbox')
         cursor = conn.cursor()
         
         # メールを取得
@@ -223,25 +217,6 @@ def download_attachment(attachment_id):
             WHERE ea.id = ?
         """, (attachment_id,))
         
-        attachment = cursor.fetchone()
-        
-        if attachment and (attachment[8] == user_id or attachment[9] == user_id):
-            # 脆弱性: ファイルパス検証なし
-            file_path = attachment[4]  # file_path
-            
-            if os.path.exists(file_path):
-                return send_file(file_path, 
-                               as_attachment=True,
-                               download_name=attachment[2])  # original_filename
-            else:
-                flash('ファイルが見つかりません', 'error')
-        else:
-            flash('権限がありません', 'error')
-        
-        return redirect('/mail/inbox')
     except Exception as e:
-        flash(f'添付ファイルのダウンロード中にエラーが発生しました: {str(e)}', 'error')
+        flash(f'ファイルダウンロード中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/mail/inbox')
-    finally:
-        if conn:
-            conn.close() 
