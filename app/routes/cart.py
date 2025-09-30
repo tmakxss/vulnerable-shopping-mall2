@@ -125,25 +125,6 @@ def clear_cart():
     
     return redirect('/cart')
 
-@bp.route('/cart/remove/<int:item_id>', methods=['POST'])
-def remove_from_cart(item_id):
-    """カートから商品削除"""
-    if 'user_id' not in session:
-        flash('ログインが必要です', 'error')
-        return redirect('/login')
-    
-    # CSRFトークン検証なし
-    user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
-    
-    cursor.execute("DELETE FROM cart WHERE id = ? AND user_id = ?", (item_id, user_id))
-    conn.commit()
-    conn.close()
-    
-    flash('カートから削除しました', 'success')
-    return redirect('/cart')
-
 @bp.route('/cart/update', methods=['POST'])
 def update_cart():
     """カート数量更新"""
@@ -152,17 +133,20 @@ def update_cart():
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
     
-    # 隠しフィールド操作脆弱性
-    item_id = request.form.get('item_id')
-    quantity = request.form.get('quantity')
+    try:
+        # 隠しフィールド操作脆弱性
+        item_id = request.form.get('item_id')
+        quantity = request.form.get('quantity')
+        
+        safe_database_query(
+            "UPDATE cart SET quantity = ? WHERE id = ? AND user_id = ?", 
+            (quantity, item_id, user_id)
+        )
+        
+        flash('カートを更新しました', 'success')
+        
+    except Exception as e:
+        flash(f'更新中にエラーが発生しました: {str(e)}', 'error')
     
-    cursor.execute("UPDATE cart SET quantity = ? WHERE id = ? AND user_id = ?", 
-                  (quantity, item_id, user_id))
-    conn.commit()
-    conn.close()
-    
-    flash('カートを更新しました', 'success')
     return redirect('/cart') 
