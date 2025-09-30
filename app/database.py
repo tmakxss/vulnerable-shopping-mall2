@@ -68,22 +68,48 @@ class DatabaseManager:
                 if fetch_one:
                     result = cursor.fetchone()
                     if result:
-                        # PostgreSQLの場合は列名を取得してマッピング
-                        if self.db_type == 'postgresql':
-                            columns = [desc[0] for desc in cursor.description]
-                            return dict(zip(columns, result))
-                        else:
-                            return dict(result)
+                        try:
+                            # PostgreSQLの場合は列名を取得してマッピング
+                            if self.db_type == 'postgresql':
+                                columns = [desc[0] for desc in cursor.description]
+                                if len(columns) == len(result):
+                                    return dict(zip(columns, result))
+                                else:
+                                    # フォールバック: インデックスベース
+                                    return {f'col_{i}': val for i, val in enumerate(result)}
+                            else:
+                                return dict(result)
+                        except Exception as e:
+                            print(f"Result processing error: {e}")
+                            # フォールバック処理
+                            if hasattr(result, '__iter__') and not isinstance(result, str):
+                                return {f'col_{i}': val for i, val in enumerate(result)}
+                            return {'result': result}
                     return None
                 elif fetch_all:
                     results = cursor.fetchall()
                     if results:
-                        # PostgreSQLの場合は列名を取得してマッピング
-                        if self.db_type == 'postgresql':
-                            columns = [desc[0] for desc in cursor.description]
-                            return [dict(zip(columns, row)) for row in results]
-                        else:
-                            return [dict(row) for row in results]
+                        try:
+                            # PostgreSQLの場合は列名を取得してマッピング
+                            if self.db_type == 'postgresql':
+                                columns = [desc[0] for desc in cursor.description]
+                                if len(columns) > 0 and len(results) > 0 and len(columns) == len(results[0]):
+                                    return [dict(zip(columns, row)) for row in results]
+                                else:
+                                    # フォールバック: インデックスベース
+                                    return [{f'col_{i}': val for i, val in enumerate(row)} for row in results]
+                            else:
+                                return [dict(row) for row in results]
+                        except Exception as e:
+                            print(f"Results processing error: {e}")
+                            # フォールバック処理
+                            processed_results = []
+                            for row in results:
+                                if hasattr(row, '__iter__') and not isinstance(row, str):
+                                    processed_results.append({f'col_{i}': val for i, val in enumerate(row)})
+                                else:
+                                    processed_results.append({'result': row})
+                            return processed_results
                     return []
                 else:
                     conn.commit()
