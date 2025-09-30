@@ -34,9 +34,10 @@ def create_app():
     
     # ブループリント登録（エラーハンドリング付き）
     try:
-        from app.routes import main, auth, product, cart, order, review, admin, user, api, mail, health
+        from app.routes import main, auth, product, cart, order, review, admin, user, api, mail, health, debug
         
         app.register_blueprint(health.bp)  # 詳細ヘルスチェック
+        app.register_blueprint(debug.bp)   # デバッグ機能
         app.register_blueprint(main.bp)
         app.register_blueprint(auth.bp)
         app.register_blueprint(product.bp)

@@ -62,12 +62,35 @@ def index():
             </html>
             ''', db_message=db_message)
         
-        # 人気商品を取得
-        featured_products = safe_database_query(
-            "SELECT * FROM products ORDER BY id DESC LIMIT 4",
-            fetch_all=True,
-            default_value=[]
-        )
+        # 人気商品を取得（安全バージョン）
+        try:
+            featured_products = safe_database_query(
+                "SELECT id, name, description, price, stock, category FROM products ORDER BY id DESC LIMIT 4",
+                fetch_all=True,
+                default_value=[]
+            )
+            
+            # 商品データの安全な処理
+            safe_featured_products = []
+            for product in featured_products or []:
+                if isinstance(product, dict):
+                    safe_product = {}
+                    for key, value in product.items():
+                        if key == 'price':
+                            # 価格の安全な変換
+                            try:
+                                safe_product[key] = float(value) if value is not None else 0.0
+                            except (ValueError, TypeError):
+                                safe_product[key] = 0.0
+                        else:
+                            safe_product[key] = value
+                    safe_featured_products.append(safe_product)
+            
+            featured_products = safe_featured_products
+            
+        except Exception as e:
+            print(f"Featured products error: {e}")
+            featured_products = []
         
         # レビュー検索機能
         review_query = request.args.get('review_search', '')
