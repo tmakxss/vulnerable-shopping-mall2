@@ -53,6 +53,34 @@ class DatabaseManager:
             except Exception as e:
                 raise Exception(f"SQLite connection failed: {e}")
     
+    def _convert_value(self, value):
+        """PostgreSQLの特殊な型を標準の型に変換"""
+        from decimal import Decimal
+        import datetime
+        
+        if isinstance(value, Decimal):
+            return float(value)
+        elif isinstance(value, datetime.datetime):
+            return value.isoformat()
+        elif isinstance(value, datetime.date):
+            return value.isoformat()
+        return value
+    
+    def _process_row(self, row, columns):
+        """行データを辞書に変換"""
+        try:
+            if self.db_type == 'postgresql':
+                # PostgreSQLの場合：リストとして返される
+                converted_row = [self._convert_value(val) for val in row]
+                return dict(zip(columns, converted_row))
+            else:
+                # SQLiteの場合：Row オブジェクト
+                return dict(row)
+        except Exception as e:
+            print(f"Row processing error: {e}")
+            # フォールバック処理
+            return {f'col_{i}': self._convert_value(val) for i, val in enumerate(row)}
+
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
         """クエリを実行"""
         try:
@@ -68,48 +96,14 @@ class DatabaseManager:
                 if fetch_one:
                     result = cursor.fetchone()
                     if result:
-                        try:
-                            # PostgreSQLの場合は列名を取得してマッピング
-                            if self.db_type == 'postgresql':
-                                columns = [desc[0] for desc in cursor.description]
-                                if len(columns) == len(result):
-                                    return dict(zip(columns, result))
-                                else:
-                                    # フォールバック: インデックスベース
-                                    return {f'col_{i}': val for i, val in enumerate(result)}
-                            else:
-                                return dict(result)
-                        except Exception as e:
-                            print(f"Result processing error: {e}")
-                            # フォールバック処理
-                            if hasattr(result, '__iter__') and not isinstance(result, str):
-                                return {f'col_{i}': val for i, val in enumerate(result)}
-                            return {'result': result}
+                        columns = [desc[0] for desc in cursor.description]
+                        return self._process_row(result, columns)
                     return None
                 elif fetch_all:
                     results = cursor.fetchall()
                     if results:
-                        try:
-                            # PostgreSQLの場合は列名を取得してマッピング
-                            if self.db_type == 'postgresql':
-                                columns = [desc[0] for desc in cursor.description]
-                                if len(columns) > 0 and len(results) > 0 and len(columns) == len(results[0]):
-                                    return [dict(zip(columns, row)) for row in results]
-                                else:
-                                    # フォールバック: インデックスベース
-                                    return [{f'col_{i}': val for i, val in enumerate(row)} for row in results]
-                            else:
-                                return [dict(row) for row in results]
-                        except Exception as e:
-                            print(f"Results processing error: {e}")
-                            # フォールバック処理
-                            processed_results = []
-                            for row in results:
-                                if hasattr(row, '__iter__') and not isinstance(row, str):
-                                    processed_results.append({f'col_{i}': val for i, val in enumerate(row)})
-                                else:
-                                    processed_results.append({'result': row})
-                            return processed_results
+                        columns = [desc[0] for desc in cursor.description]
+                        return [self._process_row(row, columns) for row in results]
                     return []
                 else:
                     conn.commit()
