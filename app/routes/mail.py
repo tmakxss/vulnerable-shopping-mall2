@@ -87,16 +87,16 @@ def inbox():
         for email in emails_raw or []:
             if isinstance(email, dict):
                 email_array = [
-                    email.get('id', 0),
-                    email.get('sender_id', 0),
-                    email.get('recipient_id', 0),
-                    email.get('subject', ''),
-                    email.get('body', ''),
-                    email.get('attachment_path', ''),
-                    email.get('is_read', False),
-                    email.get('created_at', ''),
-                    len(email.get('attachment_path', '') or ''),  # 添付ファイル数（簡易判定）
-                    email.get('sender_name', '')
+                    email.get('id', 0),                    # [0] - メールID
+                    email.get('sender_id', 0),             # [1] - 送信者ID
+                    email.get('recipient_id', 0),          # [2] - 受信者ID
+                    email.get('subject', ''),              # [3] - 件名
+                    email.get('body', ''),                 # [4] - 本文
+                    email.get('is_read', False),           # [5] - 既読フラグ
+                    email.get('created_at', ''),           # [6] - 作成日時
+                    email.get('sender_name', ''),          # [7] - 送信者名
+                    1 if email.get('attachment_path') else 0,  # [8] - 添付ファイル数
+                    email.get('attachment_path', ''),      # [9] - 添付ファイルパス
                 ]
                 emails_data.append(email_array)
         
@@ -134,16 +134,16 @@ def sent_mail():
         for email in sent_emails_raw or []:
             if isinstance(email, dict):
                 email_array = [
-                    email.get('id', 0),
-                    email.get('sender_id', 0),
-                    email.get('recipient_id', 0),
-                    email.get('subject', ''),
-                    email.get('body', ''),
-                    email.get('attachment_path', ''),
-                    email.get('is_read', False),
-                    email.get('created_at', ''),
-                    len(email.get('attachment_path', '') or ''),  # 添付ファイル数（簡易判定）
-                    email.get('recipient_name', '')
+                    email.get('id', 0),                    # [0] - メールID
+                    email.get('sender_id', 0),             # [1] - 送信者ID
+                    email.get('recipient_id', 0),          # [2] - 受信者ID
+                    email.get('subject', ''),              # [3] - 件名
+                    email.get('body', ''),                 # [4] - 本文
+                    email.get('is_read', False),           # [5] - 既読フラグ
+                    email.get('created_at', ''),           # [6] - 作成日時
+                    email.get('recipient_name', ''),       # [7] - 受信者名
+                    1 if email.get('attachment_path') else 0,  # [8] - 添付ファイル数
+                    email.get('attachment_path', ''),      # [9] - 添付ファイルパス
                 ]
                 sent_emails.append(email_array)
         
