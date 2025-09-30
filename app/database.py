@@ -81,17 +81,28 @@ class DatabaseManager:
             # フォールバック処理
             return {f'col_{i}': self._convert_value(val) for i, val in enumerate(row)}
 
+    def _convert_query_params(self, query, params):
+        """データベースタイプに応じてクエリパラメータを変換"""
+        if self.db_type == 'postgresql' and params:
+            # PostgreSQL用: ? を %s に変換
+            converted_query = query.replace('?', '%s')
+            return converted_query, params
+        return query, params
+
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
         """クエリを実行"""
         try:
+            # クエリとパラメータを変換
+            converted_query, converted_params = self._convert_query_params(query, params)
+            
             conn = self.get_connection()
             try:
                 cursor = conn.cursor()
                 
-                if params:
-                    cursor.execute(query, params)
+                if converted_params:
+                    cursor.execute(converted_query, converted_params)
                 else:
-                    cursor.execute(query)
+                    cursor.execute(converted_query)
                 
                 if fetch_one:
                     result = cursor.fetchone()
