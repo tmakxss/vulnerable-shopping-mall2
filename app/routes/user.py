@@ -69,17 +69,13 @@ def edit_profile():
         if 'profile_image' in request.files:
             file = request.files['profile_image']
             if file and file.filename != '' and allowed_file(file.filename):
-                # 脆弱性: ファイル名の検証なし
+                # Vercel対応：読み取り専用ファイルシステムのためファイル保存をスキップ
                 filename = file.filename  # secure_filename使わず
                 
-                # アップロードディレクトリ作成
-                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                # デモ版としてデフォルト画像を使用
+                profile_image = f"uploads/profiles/default.jpg"
                 
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-                file.save(filepath)
-                profile_image = f"uploads/profiles/{filename}"
-                
-                flash(f'ファイル {filename} をアップロードしました', 'success')
+                flash(f'ファイル {filename} を受け取りました（デモ版）', 'info')
         
         try:
             # プロフィール更新

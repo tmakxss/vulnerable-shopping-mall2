@@ -99,13 +99,13 @@ def index():
         try:
             if review_query:
                 # レビュー検索 (SQLインジェクション対策済み、XSS脆弱性は残存)
-                recent_reviews = safe_database_query("""
+                recent_reviews_raw = safe_database_query("""
                     SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
                            u.username, p.name as product_name
                     FROM reviews r 
                     JOIN users u ON r.user_id = u.id 
                     JOIN products p ON r.product_id = p.id 
-                    WHERE r.comment LIKE ? OR u.username LIKE ? OR p.name LIKE ?
+                    WHERE r.comment LIKE %s OR u.username LIKE %s OR p.name LIKE %s
                     ORDER BY r.created_at DESC LIMIT 10
                 """, (f'%{review_query}%', f'%{review_query}%', f'%{review_query}%'),
                 fetch_all=True,
@@ -113,7 +113,7 @@ def index():
                 )
             else:
                 # 最新レビューを取得（安全バージョン）
-                recent_reviews = safe_database_query("""
+                recent_reviews_raw = safe_database_query("""
                     SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
                            u.username, p.name as product_name
                     FROM reviews r 
@@ -121,6 +121,22 @@ def index():
                     JOIN products p ON r.product_id = p.id 
                     ORDER BY r.created_at DESC LIMIT 10
                 """, fetch_all=True, default_value=[])
+                
+            # テンプレート互換性のため配列形式に変換
+            recent_reviews = []
+            for review in recent_reviews_raw or []:
+                if isinstance(review, dict):
+                    review_array = [
+                        review.get('id', 0),
+                        review.get('product_id', 0),
+                        review.get('user_id', 0),
+                        review.get('rating', 0),
+                        review.get('comment', ''),
+                        review.get('created_at', ''),
+                        review.get('username', ''),
+                        review.get('product_name', '')
+                    ]
+                    recent_reviews.append(review_array)
                 
         except Exception as e:
             print(f"Reviews error: {e}")

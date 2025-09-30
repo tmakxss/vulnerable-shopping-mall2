@@ -49,16 +49,9 @@ def compose_mail():
                             original_filename = file.filename
                             stored_filename = f"{uuid.uuid4()}_{original_filename}"
                             
-                            # 脆弱性: Directory Traversal可能
-                            file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
-                            
-                            # ディレクトリ作成
-                            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-                            
-                            # ファイル保存
-                            file.save(file_path)
-                            
-                            flash(f'添付ファイル {original_filename} をアップロードしました', 'info')
+                            # Vercel対応：読み取り専用ファイルシステムのためファイル保存はスキップ
+                            # デモ版として添付ファイル受け取りのみ
+                            flash(f'添付ファイル {original_filename} を受け取りました（デモ版）', 'info')
                 
                 flash('メールを送信しました', 'success')
                 return redirect('/mail/sent')
@@ -80,13 +73,32 @@ def inbox():
     
     try:
         # 受信メールを取得
-        emails_data = safe_database_query("""
-            SELECT e.*, u.username as sender_name
+        emails_raw = safe_database_query("""
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at, u.username as sender_name
             FROM emails e 
             JOIN users u ON e.sender_id = u.id 
             WHERE e.recipient_id = %s 
             ORDER BY e.created_at DESC
-        """, (user_id,), fetch_all=True)
+        """, (user_id,), fetch_all=True, default_value=[])
+        
+        # テンプレート互換性のため配列形式に変換
+        emails_data = []
+        for email in emails_raw or []:
+            if isinstance(email, dict):
+                email_array = [
+                    email.get('id', 0),
+                    email.get('sender_id', 0),
+                    email.get('recipient_id', 0),
+                    email.get('subject', ''),
+                    email.get('body', ''),
+                    email.get('attachment_path', ''),
+                    email.get('is_read', False),
+                    email.get('created_at', ''),
+                    len(email.get('attachment_path', '') or ''),  # 添付ファイル数（簡易判定）
+                    email.get('sender_name', '')
+                ]
+                emails_data.append(email_array)
         
         return render_template('mail/inbox.html', emails=emails_data)
         
@@ -108,15 +120,34 @@ def sent_mail():
     
     try:
         # 送信メールを取得
-        emails_data = safe_database_query("""
-            SELECT e.*, u.username as recipient_name
+        sent_emails_raw = safe_database_query("""
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at, u.username as recipient_name
             FROM emails e 
             JOIN users u ON e.recipient_id = u.id 
             WHERE e.sender_id = %s 
             ORDER BY e.created_at DESC
-        """, (user_id,), fetch_all=True)
+        """, (user_id,), fetch_all=True, default_value=[])
         
-        return render_template('mail/sent.html', emails=emails_data)
+        # テンプレート互換性のため配列形式に変換
+        sent_emails = []
+        for email in sent_emails_raw or []:
+            if isinstance(email, dict):
+                email_array = [
+                    email.get('id', 0),
+                    email.get('sender_id', 0),
+                    email.get('recipient_id', 0),
+                    email.get('subject', ''),
+                    email.get('body', ''),
+                    email.get('attachment_path', ''),
+                    email.get('is_read', False),
+                    email.get('created_at', ''),
+                    len(email.get('attachment_path', '') or ''),  # 添付ファイル数（簡易判定）
+                    email.get('recipient_name', '')
+                ]
+                sent_emails.append(email_array)
+        
+        return render_template('mail/sent.html', emails=sent_emails)
         
     except Exception as e:
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
