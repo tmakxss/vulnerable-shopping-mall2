@@ -25,17 +25,17 @@ def admin_dashboard():
     if admin_check:
         try:
             # 統計情報をPostgreSQLから取得
-            user_count = safe_database_query("SELECT COUNT(*) FROM users", fetch_one=True)
-            user_count = user_count[0] if user_count else 0
+            user_count_result = safe_database_query("SELECT COUNT(*) FROM users", fetch_one=True, default_value=(0,))
+            user_count = user_count_result.get('count', 0) if isinstance(user_count_result, dict) else (user_count_result[0] if user_count_result else 0)
             
-            order_count = safe_database_query("SELECT COUNT(*) FROM orders", fetch_one=True)
-            order_count = order_count[0] if order_count else 0
+            order_count_result = safe_database_query("SELECT COUNT(*) FROM orders", fetch_one=True, default_value=(0,))
+            order_count = order_count_result.get('count', 0) if isinstance(order_count_result, dict) else (order_count_result[0] if order_count_result else 0)
             
-            product_count = safe_database_query("SELECT COUNT(*) FROM products", fetch_one=True)
-            product_count = product_count[0] if product_count else 0
+            product_count_result = safe_database_query("SELECT COUNT(*) FROM products", fetch_one=True, default_value=(0,))
+            product_count = product_count_result.get('count', 0) if isinstance(product_count_result, dict) else (product_count_result[0] if product_count_result else 0)
             
-            review_count = safe_database_query("SELECT COUNT(*) FROM reviews", fetch_one=True)
-            review_count = review_count[0] if review_count else 0
+            review_count_result = safe_database_query("SELECT COUNT(*) FROM reviews", fetch_one=True, default_value=(0,))
+            review_count = review_count_result.get('count', 0) if isinstance(review_count_result, dict) else (review_count_result[0] if review_count_result else 0)
             
             return render_template('admin/dashboard.html', 
                                  user_count=user_count,
