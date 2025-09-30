@@ -24,18 +24,29 @@ def checkout():
         
         try:
             # 注文作成
+            print(f"DEBUG: Creating order for user_id={user_id}, shipping_address={shipping_address}, total_amount={total_amount}")
+            
             order_data = safe_database_query("""
                 INSERT INTO orders (user_id, shipping_address, total_amount, status, created_at) 
                 VALUES (%s, %s, %s, 'pending', CURRENT_TIMESTAMP) RETURNING id
             """, (user_id, shipping_address, total_amount), fetch_one=True)
             
+            print(f"DEBUG: order_data = {order_data}, type = {type(order_data)}")
+            
             order_id = order_data['id'] if order_data else None
+            print(f"DEBUG: order_id = {order_id}")
+            
+            if not order_id:
+                flash('注文の作成に失敗しました', 'error')
+                return redirect('/checkout')
             
             # カートアイテムを注文アイテムに移動
             cart_items = safe_database_query(
                 "SELECT product_id, quantity FROM cart WHERE user_id = %s", 
                 (user_id,), fetch_all=True
             )
+            
+            print(f"DEBUG: cart_items = {cart_items}")
             
             for item in cart_items:
                 # 商品価格取得
@@ -44,6 +55,8 @@ def checkout():
                     (item['product_id'],), fetch_one=True
                 )
                 price = price_data['price'] if price_data else 0
+                
+                print(f"DEBUG: Adding order item - order_id={order_id}, product_id={item['product_id']}, quantity={item['quantity']}, price={price}")
                 
                 safe_database_query("""
                     INSERT INTO order_items (order_id, product_id, quantity, price) 
