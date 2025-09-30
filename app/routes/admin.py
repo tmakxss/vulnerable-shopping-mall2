@@ -277,12 +277,13 @@ def edit_order(order_id):
                 order = [
                     order_dict.get('id', ''),                    # 0: ID
                     order_dict.get('user_id', ''),               # 1: ユーザーID
-                    order_dict.get('username', ''),              # 2: ユーザー名(username)
-                    order_dict.get('total_amount', ''),          # 3: 合計金額
-                    order_dict.get('status', ''),                # 4: ステータス
-                    order_dict.get('shipping_address', ''),      # 5: 配送先
-                    '未設定',                                   # 6: 支払い方法(固定値)
-                    order_dict.get('created_at', '')             # 7: 作成日
+                    order_dict.get('shipping_address', ''),      # 2: 配送先
+                    '未設定',                                   # 3: 支払い方法(固定値)
+                    order_dict.get('total_amount', ''),          # 4: 合計金額
+                    order_dict.get('status', ''),                # 5: ステータス
+                    order_dict.get('created_at', ''),            # 6: 作成日
+                    order_dict.get('user_email', ''),            # 7: ユーザーメール
+                    order_dict.get('username', '')               # 8: ユーザー名
                 ]
                 return render_template('admin/edit_order.html', order=order)
             else:
@@ -301,7 +302,7 @@ def delete_order(order_id):
     
     if user_id == '1':
         try:
-            safe_database_query(
+            result = safe_database_query(
                 "DELETE FROM orders WHERE id = %s",
                 (order_id,)
             )
