@@ -663,26 +663,6 @@ def edit_review(review_id):
     
     return "管理者権限が必要です"
 
-@bp.route('/admin/reviews/delete/<int:review_id>')
-def delete_review(review_id):
-    """レビュー削除"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        try:
-            safe_database_query(
-                "DELETE FROM reviews WHERE id = %s",
-                (review_id,)
-            )
-            
-            flash('レビューを削除しました', 'success')
-            return redirect('/admin/reviews')
-        except Exception as e:
-            flash(f'レビュー削除エラー: {str(e)}', 'danger')
-            return redirect('/admin/reviews')
-    
-    return "管理者権限が必要です"
-
 @bp.route('/admin/reviews/delete/<int:review_id>', methods=['GET'])
 def delete_review(review_id):
     """レビュー削除"""
@@ -708,6 +688,34 @@ def admin_system():
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
+        import subprocess
+        import platform
+        
+        system_info = {
+            'os': platform.system(),
+            'platform': platform.platform(),
+            'python_version': platform.python_version(),
+            'cwd': os.getcwd(),
+            'files': os.listdir('.') if os.path.exists('.') else []
+        }
+        
+        # Pingテスト機能
+        ping_result = ""
+        target = request.args.get('target', '')
+        if target:
+            try:
+                # 脆弱性: コマンドインジェクション
+                result = subprocess.check_output(f'ping -c 4 {target}', shell=True, text=True, timeout=10)
+                ping_result = result
+            except Exception as e:
+                ping_result = f"Ping failed: {str(e)}"
+        
+        return render_template('admin/system.html', 
+                             system_info=system_info, 
+                             ping_result=ping_result,
+                             target=target)
+    
+    return "管理者権限が必要です"
 
 
 
