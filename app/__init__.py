@@ -1,5 +1,5 @@
 from flask import Flask
-from app.routes import main, auth, product, cart, order, review, admin, user, api, mail
+from app.routes import main, auth, product, cart, order, review, admin, user, api, mail, health
 from dotenv import load_dotenv
 import os
 
@@ -17,6 +17,7 @@ def create_app():
     app.config['EDUCATIONAL_USE_ONLY'] = True
     
     # ブループリント登録
+    app.register_blueprint(health.bp)  # ヘルスチェックを最初に登録
     app.register_blueprint(main.bp)
     app.register_blueprint(auth.bp)
     app.register_blueprint(product.bp)

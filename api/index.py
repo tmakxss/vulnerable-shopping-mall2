@@ -1,13 +1,14 @@
 from app import create_app
 import os
 
+# Flaskアプリケーションを作成
 app = create_app()
 
-# Vercel用のエントリーポイント
-def handler(request):
-    return app(request.environ, request.start_response)
+# Vercel用のエントリーポイント（必須）
+def handler(environ, start_response):
+    return app(environ, start_response)
 
-# 通常のWSGI対応
+# デバッグ用のローカル実行
 if __name__ == '__main__':
     print("🔒 脆弱なショッピングモール - ウェブセキュリティ演習サイト")
     print("🌐 サーバー起動中...")
