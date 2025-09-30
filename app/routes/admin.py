@@ -1,11 +1,7 @@
 from flask import Blueprint, render_template, request, session, redirect, flash, jsonify, make_response
 from app.utils import safe_database_query
-import os
-import subprocess
-import pickle
-import base64
 import json
-import shutil
+import os
 from datetime import datetime
 
 bp = Blueprint('admin', __name__)
@@ -65,15 +61,31 @@ def admin_users():
             
             if search:
                 # SQLインジェクション脆弱性を保持しつつPostgreSQL対応
-                all_users = safe_database_query(
-                    f"SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%'",
+                all_users_raw = safe_database_query(
+                    f"SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%' ORDER BY created_at ASC",
                     fetch_all=True, default_value=[]
                 )
             else:
-                all_users = safe_database_query(
-                    "SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users ORDER BY created_at ASC",
+                all_users_raw = safe_database_query(
+                    "SELECT id, username, email, address, phone, is_admin, created_at FROM users ORDER BY created_at ASC",
                     fetch_all=True, default_value=[]
                 )
+            
+            # テンプレート互換性のため配列形式に変換
+            all_users = []
+            for i, user in enumerate(all_users_raw or [], 1):
+                if isinstance(user, dict):
+                    user_array = [
+                        i,  # row_num
+                        user.get('id', 0),
+                        user.get('username', ''),
+                        user.get('email', ''),
+                        user.get('address', ''),
+                        user.get('phone', ''),
+                        user.get('is_admin', False),
+                        user.get('created_at', '')
+                    ]
+                    all_users.append(user_array)
             
             # ページング計算
             total = len(all_users)
@@ -99,16 +111,19 @@ def delete_user(user_id):
     is_admin = request.cookies.get('is_admin', '0')
     
     if int(is_admin) > 0:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-
-        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
-        conn.commit()
-        conn.close()
-        
-        flash('ユーザーを削除しました', 'success')
-        return redirect('/admin/users')
+        try:
+            # PostgreSQLでユーザー削除
+            result = safe_database_query(
+                "DELETE FROM users WHERE id = %s",
+                (user_id,),
+                commit=True
+            )
+            
+            flash('ユーザーを削除しました', 'success')
+            return redirect('/admin/users')
+        except Exception as e:
+            flash(f'ユーザー削除エラー: {str(e)}', 'danger')
+            return redirect('/admin/users')
     
     return "管理者権限が必要です"
 
@@ -118,38 +133,55 @@ def edit_user(user_id):
     is_admin = request.cookies.get('is_admin', '0')
     
     if int(is_admin) > 0:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        if request.method == 'POST':
-            username = request.form.get('username')
-            email = request.form.get('email')
-            address = request.form.get('address')
-            phone = request.form.get('phone')
-            is_admin = request.form.get('is_admin') == 'on'
-            new_password = request.form.get('new_password')
+        try:
+            if request.method == 'POST':
+                username = request.form.get('username')
+                email = request.form.get('email')
+                address = request.form.get('address')
+                phone = request.form.get('phone')
+                is_admin_check = request.form.get('is_admin') == 'on'
+                new_password = request.form.get('new_password')
+                
+                if new_password:
+                    safe_database_query(
+                        "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s, password=%s WHERE id=%s",
+                        (username, email, address, phone, is_admin_check, new_password, user_id),
+                        commit=True
+                    )
+                else:
+                    safe_database_query(
+                        "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s WHERE id=%s",
+                        (username, email, address, phone, is_admin_check, user_id),
+                        commit=True
+                    )
+                
+                flash('ユーザーを更新しました', 'success')
+                return redirect('/admin/users')
             
-            if new_password:
-                cursor.execute("UPDATE users SET username=?, email=?, address=?, phone=?, is_admin=?, password=? WHERE id=?",
-                             (username, email, address, phone, is_admin, new_password, user_id))
+            # ユーザー情報を取得
+            user_dict = safe_database_query(
+                "SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE id = %s",
+                (user_id,),
+                fetch_one=True
+            )
+            
+            if user_dict:
+                # dict形式をarray形式に変換
+                user = [
+                    user_dict.get('id', ''),
+                    user_dict.get('username', ''),
+                    user_dict.get('email', ''),
+                    user_dict.get('address', ''),
+                    user_dict.get('phone', ''),
+                    user_dict.get('is_admin', 0),
+                    user_dict.get('created_at', '')
+                ]
+                return render_template('admin/edit_user.html', user=user)
             else:
-                cursor.execute("UPDATE users SET username=?, email=?, address=?, phone=?, is_admin=? WHERE id=?",
-                             (username, email, address, phone, is_admin, user_id))
-            
-            conn.commit()
-            conn.close()
-            
-            flash('ユーザーを更新しました', 'success')
-            return redirect('/admin/users')
-        
-        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user = cursor.fetchone()
-        conn.close()
-        
-        if user:
-            return render_template('admin/edit_user.html', user=user)
-        else:
-            flash('ユーザーが見つかりません', 'danger')
+                flash('ユーザーが見つかりません', 'danger')
+                return redirect('/admin/users')
+        except Exception as e:
+            flash(f'ユーザー編集エラー: {str(e)}', 'danger')
             return redirect('/admin/users')
     
     return "管理者権限が必要です"
@@ -157,38 +189,52 @@ def edit_user(user_id):
 @bp.route('/admin/orders')
 def admin_orders():
     """注文管理"""
-    user_id = request.cookies.get('user_id')
+    is_admin = request.cookies.get('is_admin', 'false')
+    admin_check = is_admin.lower() in ['true', '1', 'yes']
     
-    if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        search = request.args.get('search', '')
-        page = request.args.get('page', 1, type=int)
-        per_page = 20
-        
-        if search:
-            cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY o.id ASC) as row_num, o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id LIKE '%{search}%' OR u.username LIKE '%{search}%' ORDER BY o.id ASC")
-        else:
-            cursor.execute("SELECT ROW_NUMBER() OVER (ORDER BY o.id ASC) as row_num, o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id ORDER BY o.id ASC")
-        
-        all_orders = cursor.fetchall()
-        
-        # ページング計算
-        total = len(all_orders)
-        total_pages = (total + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        orders = all_orders[start_idx:end_idx]
-        
-        conn.close()
-        
-        return render_template('admin/orders.html', 
-                             orders=orders, 
-                             search=search, 
-                             page=page, 
-                             total_pages=total_pages,
-                             total=total)
+    if admin_check:
+        try:
+            page = request.args.get('page', 1, type=int)
+            per_page = 20
+            
+            # 注文データを取得
+            orders_raw = safe_database_query("""
+                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.created_at,
+                       u.username
+                FROM orders o 
+                JOIN users u ON o.user_id = u.id 
+                ORDER BY o.created_at DESC
+            """, fetch_all=True, default_value=[])
+            
+            # テンプレート互換性のため配列形式に変換
+            all_orders = []
+            for order in orders_raw or []:
+                if isinstance(order, dict):
+                    order_array = [
+                        order.get('id', 0),
+                        order.get('user_id', 0),
+                        order.get('total_amount', 0),
+                        order.get('status', ''),
+                        order.get('shipping_address', ''),
+                        order.get('created_at', ''),
+                        order.get('username', '')
+                    ]
+                    all_orders.append(order_array)
+            
+            # ページング
+            total = len(all_orders)
+            total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            orders = all_orders[start_idx:end_idx]
+            
+            return render_template('admin/orders.html', 
+                                 orders=orders, 
+                                 page=page, 
+                                 total_pages=total_pages,
+                                 total=total)
+        except Exception as e:
+            return f"注文管理画面のロード中にエラーが発生しました: {str(e)}"
     
     return "管理者権限が必要です"
 
@@ -198,32 +244,47 @@ def edit_order(order_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        if request.method == 'POST':
-            shipping_address = request.form.get('shipping_address')
-            payment_method = request.form.get('payment_method')
-            total_amount = request.form.get('total_amount')
-            status = request.form.get('status')
+        try:
+            if request.method == 'POST':
+                shipping_address = request.form.get('shipping_address')
+                payment_method = request.form.get('payment_method')
+                total_amount = request.form.get('total_amount')
+                status = request.form.get('status')
+                
+                safe_database_query(
+                    "UPDATE orders SET shipping_address=%s, payment_method=%s, total_amount=%s, status=%s WHERE id=%s",
+                    (shipping_address, payment_method, total_amount, status, order_id),
+                    commit=True
+                )
+                
+                flash('注文を更新しました', 'success')
+                return redirect('/admin/orders')
             
-            cursor.execute("UPDATE orders SET shipping_address=?, payment_method=?, total_amount=?, status=? WHERE id=?",
-                         (shipping_address, payment_method, total_amount, status, order_id))
+            # 注文情報を取得
+            order_dict = safe_database_query(
+                "SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.payment_method, o.created_at, u.username FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = %s",
+                (order_id,),
+                fetch_one=True
+            )
             
-            conn.commit()
-            conn.close()
-            
-            flash('注文を更新しました', 'success')
-            return redirect('/admin/orders')
-        
-        cursor.execute("SELECT o.*, u.username FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = ?", (order_id,))
-        order = cursor.fetchone()
-        conn.close()
-        
-        if order:
-            return render_template('admin/edit_order.html', order=order)
-        else:
-            flash('注文が見つかりません', 'danger')
+            if order_dict:
+                # dict形式をarray形式に変換
+                order = [
+                    order_dict.get('id', ''),
+                    order_dict.get('user_id', ''),
+                    order_dict.get('total_amount', ''),
+                    order_dict.get('status', ''),
+                    order_dict.get('shipping_address', ''),
+                    order_dict.get('payment_method', ''),
+                    order_dict.get('created_at', ''),
+                    order_dict.get('username', '')
+                ]
+                return render_template('admin/edit_order.html', order=order)
+            else:
+                flash('注文が見つかりません', 'danger')
+                return redirect('/admin/orders')
+        except Exception as e:
+            flash(f'注文編集エラー: {str(e)}', 'danger')
             return redirect('/admin/orders')
     
     return "管理者権限が必要です"
@@ -234,53 +295,76 @@ def delete_order(order_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM orders WHERE id = ?", (order_id,))
-        conn.commit()
-        conn.close()
-        
-        flash('注文を削除しました', 'success')
-        return redirect('/admin/orders')
+        try:
+            safe_database_query(
+                "DELETE FROM orders WHERE id = %s",
+                (order_id,),
+                commit=True
+            )
+            
+            flash('注文を削除しました', 'success')
+            return redirect('/admin/orders')
+        except Exception as e:
+            flash(f'注文削除エラー: {str(e)}', 'danger')
+            return redirect('/admin/orders')
     
     return "管理者権限が必要です"
 
 @bp.route('/admin/products')
 def admin_products():
     """商品管理"""
-    user_id = request.cookies.get('user_id')
+    is_admin = request.cookies.get('is_admin', 'false')
+    admin_check = is_admin.lower() in ['true', '1', 'yes']
     
-    if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        search = request.args.get('search', '')
-        page = request.args.get('page', 1, type=int)
-        per_page = 20
-        
-        if search:
-            cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY id ASC) as row_num, * FROM products WHERE name LIKE '%{search}%' OR category LIKE '%{search}%' ORDER BY id ASC")
-        else:
-            cursor.execute("SELECT ROW_NUMBER() OVER (ORDER BY id ASC) as row_num, * FROM products ORDER BY id ASC")
-        
-        all_products = cursor.fetchall()
-        
-        # ページング計算
-        total = len(all_products)
-        total_pages = (total + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        products = all_products[start_idx:end_idx]
-        
-        conn.close()
-        
-        return render_template('admin/products.html', 
-                             products=products, 
-                             search=search, 
-                             page=page, 
-                             total_pages=total_pages,
-                             total=total)
+    if admin_check:
+        try:
+            search = request.args.get('search', '')
+            page = request.args.get('page', 1, type=int)
+            per_page = 20
+            
+            if search:
+                products_raw = safe_database_query(
+                    f"SELECT id, name, description, price, stock, category, image_url, created_at FROM products WHERE name LIKE '%{search}%' OR category LIKE '%{search}%' ORDER BY id ASC",
+                    fetch_all=True, default_value=[]
+                )
+            else:
+                products_raw = safe_database_query(
+                    "SELECT id, name, description, price, stock, category, image_url, created_at FROM products ORDER BY id ASC",
+                    fetch_all=True, default_value=[]
+                )
+            
+            # テンプレート互換性のため配列形式に変換
+            all_products = []
+            for i, product in enumerate(products_raw or [], 1):
+                if isinstance(product, dict):
+                    product_array = [
+                        i,  # row_num
+                        product.get('id', 0),
+                        product.get('name', ''),
+                        product.get('description', ''),
+                        float(product.get('price', 0)) if product.get('price') is not None else 0.0,
+                        product.get('stock', 0),
+                        product.get('category', ''),
+                        product.get('image_url', ''),
+                        product.get('created_at', '')
+                    ]
+                    all_products.append(product_array)
+            
+            # ページング計算
+            total = len(all_products)
+            total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            products = all_products[start_idx:end_idx]
+            
+            return render_template('admin/products.html', 
+                                 products=products, 
+                                 search=search, 
+                                 page=page, 
+                                 total_pages=total_pages,
+                                 total=total)
+        except Exception as e:
+            return f"商品管理画面のロード中にエラーが発生しました: {str(e)}"
     
     return "管理者権限が必要です"
 
@@ -290,16 +374,19 @@ def delete_product(product_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # IDOR脆弱性: 権限チェックなしで削除
-        cursor.execute("DELETE FROM products WHERE id = ?", (product_id,))
-        conn.commit()
-        conn.close()
-        
-        flash('商品を削除しました', 'success')
-        return redirect('/admin/products')
+        try:
+            # IDOR脆弱性: 権限チェックなしで削除
+            safe_database_query(
+                "DELETE FROM products WHERE id = %s",
+                (product_id,),
+                commit=True
+            )
+            
+            flash('商品を削除しました', 'success')
+            return redirect('/admin/products')
+        except Exception as e:
+            flash(f'商品削除エラー: {str(e)}', 'danger')
+            return redirect('/admin/products')
     
     return "管理者権限が必要です"
 
@@ -310,30 +397,33 @@ def add_product():
     
     if user_id == '1':
         if request.method == 'POST':
-            name = request.form.get('name')
-            description = request.form.get('description')
-            price = request.form.get('price')
-            stock = request.form.get('stock')
-            category = request.form.get('category')
-            
-            file = request.files.get('image')
-            image_url = ''
-            
-            if file:
-                filename = file.filename
-                file_path = os.path.join('app/static/uploads', filename)
-                file.save(file_path)
-                image_url = f'/static/uploads/{filename}'
-            
-            conn = sqlite3.connect('database/shop.db')
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO products (name, description, price, stock, category, image_url) VALUES (?, ?, ?, ?, ?, ?)",
-                         (name, description, price, stock, category, image_url))
-            conn.commit()
-            conn.close()
-            
-            flash('商品を追加しました', 'success')
-            return redirect('/admin/products')
+            try:
+                name = request.form.get('name')
+                description = request.form.get('description')
+                price = request.form.get('price')
+                stock = request.form.get('stock')
+                category = request.form.get('category')
+                
+                file = request.files.get('image')
+                image_url = ''
+                
+                if file:
+                    filename = file.filename
+                    file_path = os.path.join('app/static/uploads', filename)
+                    file.save(file_path)
+                    image_url = f'/static/uploads/{filename}'
+                
+                safe_database_query(
+                    "INSERT INTO products (name, description, price, stock, category, image_url) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (name, description, price, stock, category, image_url),
+                    commit=True
+                )
+                
+                flash('商品を追加しました', 'success')
+                return redirect('/admin/products')
+            except Exception as e:
+                flash(f'商品追加エラー: {str(e)}', 'danger')
+                return redirect('/admin/products')
         
         return render_template('admin/add_product.html')
     
@@ -345,43 +435,61 @@ def edit_product(product_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        if request.method == 'POST':
-            name = request.form.get('name')
-            description = request.form.get('description')
-            price = request.form.get('price')
-            stock = request.form.get('stock')
-            category = request.form.get('category')
+        try:
+            if request.method == 'POST':
+                name = request.form.get('name')
+                description = request.form.get('description')
+                price = request.form.get('price')
+                stock = request.form.get('stock')
+                category = request.form.get('category')
+                
+                file = request.files.get('image')
+                
+                if file and file.filename:
+                    filename = file.filename
+                    file_path = os.path.join('app/static/uploads', filename)
+                    file.save(file_path)
+                    image_url = f'/static/uploads/{filename}'
+                    safe_database_query(
+                        "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s, image_url=%s WHERE id=%s",
+                        (name, description, price, stock, category, image_url, product_id),
+                        commit=True
+                    )
+                else:
+                    safe_database_query(
+                        "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s WHERE id=%s",
+                        (name, description, price, stock, category, product_id),
+                        commit=True
+                    )
+                
+                flash('商品を更新しました', 'success')
+                return redirect('/admin/products')
             
-            file = request.files.get('image')
+            # 商品情報を取得
+            product_dict = safe_database_query(
+                "SELECT id, name, description, price, stock, category, image_url, created_at FROM products WHERE id = %s",
+                (product_id,),
+                fetch_one=True
+            )
             
-            if file and file.filename:
-                filename = file.filename
-                file_path = os.path.join('app/static/uploads', filename)
-                file.save(file_path)
-                image_url = f'/static/uploads/{filename}'
-                cursor.execute("UPDATE products SET name=?, description=?, price=?, stock=?, category=?, image_url=? WHERE id=?",
-                             (name, description, price, stock, category, image_url, product_id))
+            if product_dict:
+                # dict形式をarray形式に変換
+                product = [
+                    product_dict.get('id', ''),
+                    product_dict.get('name', ''),
+                    product_dict.get('description', ''),
+                    product_dict.get('price', ''),
+                    product_dict.get('stock', ''),
+                    product_dict.get('category', ''),
+                    product_dict.get('image_url', ''),
+                    product_dict.get('created_at', '')
+                ]
+                return render_template('admin/edit_product.html', product=product)
             else:
-                cursor.execute("UPDATE products SET name=?, description=?, price=?, stock=?, category=? WHERE id=?",
-                             (name, description, price, stock, category, product_id))
-            
-            conn.commit()
-            conn.close()
-            
-            flash('商品を更新しました', 'success')
-            return redirect('/admin/products')
-        
-        cursor.execute("SELECT * FROM products WHERE id = ?", (product_id,))
-        product = cursor.fetchone()
-        conn.close()
-        
-        if product:
-            return render_template('admin/edit_product.html', product=product)
-        else:
-            flash('商品が見つかりません', 'danger')
+                flash('商品が見つかりません', 'danger')
+                return redirect('/admin/products')
+        except Exception as e:
+            flash(f'商品編集エラー: {str(e)}', 'danger')
             return redirect('/admin/products')
     
     return "管理者権限が必要です"
@@ -392,48 +500,61 @@ def admin_reviews():
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        search = request.args.get('search', '')
-        page = request.args.get('page', 1, type=int)
-        per_page = 20
-        
-        if search:
-            cursor.execute(f"""
-                SELECT ROW_NUMBER() OVER (ORDER BY r.id ASC) as row_num, r.*, u.username, p.name as product_name 
-                FROM reviews r 
-                JOIN users u ON r.user_id = u.id 
-                JOIN products p ON r.product_id = p.id 
-                WHERE p.name LIKE '%{search}%' OR u.username LIKE '%{search}%'
-                ORDER BY r.id ASC
-            """)
-        else:
-            cursor.execute("""
-                SELECT ROW_NUMBER() OVER (ORDER BY r.id ASC) as row_num, r.*, u.username, p.name as product_name 
-                FROM reviews r 
-                JOIN users u ON r.user_id = u.id 
-                JOIN products p ON r.product_id = p.id 
-                ORDER BY r.id ASC
-            """)
-        
-        all_reviews = cursor.fetchall()
-        
-        # ページング計算
-        total = len(all_reviews)
-        total_pages = (total + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        reviews = all_reviews[start_idx:end_idx]
-        
-        conn.close()
-        
-        return render_template('admin/reviews.html', 
-                             reviews=reviews, 
-                             search=search, 
-                             page=page, 
-                             total_pages=total_pages,
-                             total=total)
+        try:
+            search = request.args.get('search', '')
+            page = request.args.get('page', 1, type=int)
+            per_page = 20
+            
+            if search:
+                reviews_raw = safe_database_query(f"""
+                    SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
+                           u.username, p.name as product_name 
+                    FROM reviews r 
+                    JOIN users u ON r.user_id = u.id 
+                    JOIN products p ON r.product_id = p.id 
+                    WHERE p.name LIKE '%{search}%' OR u.username LIKE '%{search}%'
+                    ORDER BY r.id ASC
+                """)
+            else:
+                reviews_raw = safe_database_query("""
+                    SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
+                           u.username, p.name as product_name 
+                    FROM reviews r 
+                    JOIN users u ON r.user_id = u.id 
+                    JOIN products p ON r.product_id = p.id 
+                    ORDER BY r.id ASC
+                """)
+            
+            # PostgreSQLの結果をarray形式に変換
+            all_reviews = []
+            for i, review in enumerate(reviews_raw):
+                all_reviews.append([
+                    i + 1,  # row_num
+                    review.get('id', ''),
+                    review.get('user_id', ''),
+                    review.get('product_id', ''),
+                    review.get('rating', ''),
+                    review.get('comment', ''),
+                    review.get('created_at', ''),
+                    review.get('username', ''),
+                    review.get('product_name', '')
+                ])
+            
+            # ページング計算
+            total = len(all_reviews)
+            total_pages = (total + per_page - 1) // per_page
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            reviews = all_reviews[start_idx:end_idx]
+            
+            return render_template('admin/reviews.html', 
+                                 reviews=reviews, 
+                                 search=search, 
+                                 page=page, 
+                                 total_pages=total_pages,
+                                 total=total)
+        except Exception as e:
+            return f"レビュー管理画面のロード中にエラーが発生しました: {str(e)}"
     
     return "管理者権限が必要です"
 
@@ -443,36 +564,49 @@ def edit_review(review_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        if request.method == 'POST':
-            rating = request.form.get('rating')
-            comment = request.form.get('comment')
+        try:
+            if request.method == 'POST':
+                rating = request.form.get('rating')
+                comment = request.form.get('comment')
+                
+                safe_database_query(
+                    "UPDATE reviews SET rating=%s, comment=%s WHERE id=%s",
+                    (rating, comment, review_id),
+                    commit=True
+                )
+                
+                flash('レビューを更新しました', 'success')
+                return redirect('/admin/reviews')
             
-            cursor.execute("UPDATE reviews SET rating=?, comment=? WHERE id=?",
-                         (rating, comment, review_id))
+            # レビュー情報を取得
+            review_dict = safe_database_query("""
+                SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
+                       u.username, p.name as product_name 
+                FROM reviews r 
+                JOIN users u ON r.user_id = u.id 
+                JOIN products p ON r.product_id = p.id 
+                WHERE r.id = %s
+            """, (review_id,), fetch_one=True)
             
-            conn.commit()
-            conn.close()
-            
-            flash('レビューを更新しました', 'success')
-            return redirect('/admin/reviews')
-        
-        cursor.execute("""
-            SELECT ROW_NUMBER() OVER (ORDER BY r.id ASC) as row_num, r.*, u.username, p.name as product_name 
-            FROM reviews r 
-            JOIN users u ON r.user_id = u.id 
-            JOIN products p ON r.product_id = p.id 
-            WHERE r.id = ?
-        """, (review_id,))
-        review = cursor.fetchone()
-        conn.close()
-        
-        if review:
-            return render_template('admin/edit_review.html', review=review)
-        else:
-            flash('レビューが見つかりません', 'danger')
+            if review_dict:
+                # dict形式をarray形式に変換
+                review = [
+                    1,  # row_num
+                    review_dict.get('id', ''),
+                    review_dict.get('user_id', ''),
+                    review_dict.get('product_id', ''),
+                    review_dict.get('rating', ''),
+                    review_dict.get('comment', ''),
+                    review_dict.get('created_at', ''),
+                    review_dict.get('username', ''),
+                    review_dict.get('product_name', '')
+                ]
+                return render_template('admin/edit_review.html', review=review)
+            else:
+                flash('レビューが見つかりません', 'danger')
+                return redirect('/admin/reviews')
+        except Exception as e:
+            flash(f'レビュー編集エラー: {str(e)}', 'danger')
             return redirect('/admin/reviews')
     
     return "管理者権限が必要です"
@@ -483,260 +617,21 @@ def delete_review(review_id):
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
-        conn.commit()
-        conn.close()
-        
-        flash('レビューを削除しました', 'success')
-        return redirect('/admin/reviews')
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/system')
-def system_info():
-    """システム情報"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-
-        system_info = {
-            'os': os.name,
-            'cwd': os.getcwd(),
-            'env': dict(os.environ),
-            'files': os.listdir('.')
-        }
-        
-        return render_template('admin/system.html', system_info=system_info)
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/command', methods=['GET', 'POST'])
-def execute_command():
-    """コマンド実行"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        if request.method == 'POST':
-            command = request.form.get('command')
-            
-
-            try:
-                result = subprocess.check_output(command, shell=True, text=True)
-                return render_template('admin/command.html', result=result, command=command)
-            except Exception as e:
-                return render_template('admin/command.html', result=str(e), command=command)
-        
-        return render_template('admin/command.html')
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/config')
-def view_config():
-    """設定表示"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-
-        config = {
-            'database_path': 'database/shop.db',
-            'admin_password': 'admin123',
-            'secret_key': 'super_secret_key_123',
-            'debug_mode': True
-        }
-        
-        return render_template('admin/config.html', config=config)
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/backup')
-def backup_data():
-    """データバックアップ"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        backup_path = request.args.get('path', 'backup.db')
-        
-
         try:
-            with open(backup_path, 'r') as f:
-                content = f.read()
-            return f"バックアップファイルの内容: {content}"
+            safe_database_query(
+                "DELETE FROM reviews WHERE id = %s",
+                (review_id,),
+                commit=True
+            )
+            
+            flash('レビューを削除しました', 'success')
+            return redirect('/admin/reviews')
         except Exception as e:
-            return f"エラー: {str(e)}"
+            flash(f'レビュー削除エラー: {str(e)}', 'danger')
+            return redirect('/admin/reviews')
     
     return "管理者権限が必要です"
 
-@bp.route('/admin/deserialize')
-def deserialize_data():
-    """デシリアライゼーション"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        data = request.args.get('data', '')
-        
-        if data:
-            try:
- 
-                decoded_data = base64.b64decode(data)
-                deserialized = pickle.loads(decoded_data)
-                return f"デシリアライズ結果: {deserialized}"
-            except Exception as e:
-                return f"エラー: {str(e)}"
-        
-        return render_template('admin/deserialize.html')
-    
-    return "管理者権限が必要です"
 
-@bp.route('/admin/database/backup', methods=['GET', 'POST'])
-def backup_database():
-    """データベースバックアップ"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        if request.method == 'POST':
-            try:
-                # ユーザーが入力したファイル名を取得
-                custom_name = request.form.get('backup_name', '').strip()
-                
-                # ファイル名の検証
-                if not custom_name:
-                    flash('バックアップ名を入力してください', 'danger')
-                    return redirect('/admin/database')
-                
-                # ファイル名に使用できない文字を除去
-                import re
-                safe_name = re.sub(r'[^\w\-_\.]', '_', custom_name)
-                
-                # タイムスタンプを追加
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                backup_path = f'database/backup_{safe_name}_{timestamp}.db'
-                
-                # データベースファイルをコピー
-                shutil.copy2('database/shop.db', backup_path)
-                
-                flash(f'データベースバックアップが完了しました: {backup_path}', 'success')
-                return redirect('/admin/database')
-            except Exception as e:
-                flash(f'バックアップエラー: {str(e)}', 'danger')
-                return redirect('/admin/database')
-        
-        # GET リクエストの場合はバックアップ作成フォームを表示
-        return render_template('admin/backup_form.html')
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/database/restore/<filename>')
-def restore_database(filename):
-    """データベース復元"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        try:
-            backup_path = f'database/{filename}'
-            
-            # バックアップファイルが存在するかチェック
-            if not os.path.exists(backup_path):
-                flash('バックアップファイルが見つかりません', 'danger')
-                return redirect('/admin/database')
-            
-            # 現在のデータベースをバックアップ
-            current_backup = f'database/current_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
-            shutil.copy2('database/shop.db', current_backup)
-            
-            # バックアップから復元
-            shutil.copy2(backup_path, 'database/shop.db')
-            
-            flash(f'データベース復元が完了しました: {filename}', 'success')
-            return redirect('/admin/database')
-        except Exception as e:
-            flash(f'復元エラー: {str(e)}', 'danger')
-            return redirect('/admin/database')
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/database/reset')
-def reset_database():
-    """データベース初期化"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        try:
-            # 現在のデータベースをバックアップ
-            import shutil
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_path = f'database/backup_before_reset_{timestamp}.db'
-            shutil.copy2('database/shop.db', backup_path)
-            
-            # データベース初期化スクリプトを実行
-            import subprocess
-            result = subprocess.run(['python', 'database/init_db.py'], 
-                                  capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                flash(f'データベース初期化が完了しました。バックアップ: {backup_path}', 'success')
-            else:
-                flash(f'初期化エラー: {result.stderr}', 'danger')
-            
-            return redirect('/admin/database')
-        except Exception as e:
-            flash(f'初期化エラー: {str(e)}', 'danger')
-            return redirect('/admin/database')
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/database')
-def database_management():
-    """データベース管理"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        import glob
-        from datetime import datetime
-        
-        # バックアップファイル一覧を取得
-        backup_files = []
-        for backup_file in glob.glob('database/backup_*.db'):
-            file_stat = os.stat(backup_file)
-            backup_files.append({
-                'filename': os.path.basename(backup_file),
-                'size': file_stat.st_size,
-                'created': datetime.fromtimestamp(file_stat.st_ctime)
-            })
-        
-        # 作成日時でソート
-        backup_files.sort(key=lambda x: x['created'], reverse=True)
-        
-        return render_template('admin/database.html', backup_files=backup_files)
-    
-    return "管理者権限が必要です"
-
-@bp.route('/admin/database/delete/<filename>')
-def delete_backup(filename):
-    """バックアップファイル削除"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        try:
-            backup_path = f'database/{filename}'
-            
-            # バックアップファイルが存在するかチェック
-            if not os.path.exists(backup_path):
-                flash('バックアップファイルが見つかりません', 'danger')
-                return redirect('/admin/database')
-            
-            # ファイル削除
-            os.remove(backup_path)
-            
-            flash(f'バックアップファイルを削除しました: {filename}', 'success')
-            return redirect('/admin/database')
-        except Exception as e:
-            flash(f'削除エラー: {str(e)}', 'danger')
-            return redirect('/admin/database')
-    
-    return "管理者権限が必要です"
 
  
