@@ -664,53 +664,6 @@ def system_info():
     
     return "管理者権限が必要です"
 
-@bp.route('/admin/init_data')
-def init_sample_data():
-    """サンプルデータ初期化（開発/デモ用）"""
-    user_id = request.cookies.get('user_id')
-    
-    if user_id == '1':
-        try:
-            # 注文データが存在するかチェック
-            existing_orders = safe_database_query("SELECT COUNT(*) as count FROM orders", fetch_one=True)
-            order_count = existing_orders.get('count', 0) if existing_orders else 0
-            
-            if order_count == 0:
-                # サンプル注文データを作成
-                safe_database_query("""
-                    INSERT INTO orders (user_id, total_amount, status, shipping_address, payment_method, created_at) 
-                    VALUES (1, 2500.00, '配送完了', '東京都渋谷区1-1-1', 'クレジットカード', NOW())
-                """)
-                safe_database_query("""
-                    INSERT INTO orders (user_id, total_amount, status, shipping_address, payment_method, created_at) 
-                    VALUES (2, 1800.00, '処理中', '大阪府大阪市2-2-2', '代金引換', NOW())
-                """)
-                flash('注文サンプルデータを作成しました', 'success')
-            
-            # レビューデータが存在するかチェック
-            existing_reviews = safe_database_query("SELECT COUNT(*) as count FROM reviews", fetch_one=True)
-            review_count = existing_reviews.get('count', 0) if existing_reviews else 0
-            
-            if review_count == 0:
-                # サンプルレビューデータを作成
-                safe_database_query("""
-                    INSERT INTO reviews (user_id, product_id, rating, comment, created_at) 
-                    VALUES (1, 1, 5, '素晴らしい商品です！', NOW())
-                """)
-                safe_database_query("""
-                    INSERT INTO reviews (user_id, product_id, rating, comment, created_at) 
-                    VALUES (2, 1, 4, '良い商品でした', NOW())
-                """)
-                flash('レビューサンプルデータを作成しました', 'success')
-            
-            return redirect('/admin/')
-            
-        except Exception as e:
-            flash(f'データ初期化エラー: {str(e)}', 'danger')
-            return redirect('/admin/')
-    
-    return "管理者権限が必要です"
-
 
 
  
