@@ -273,12 +273,12 @@ def contact():
         return redirect('/login')
     if request.method == 'POST':
         title = request.form.get('title')
-        message = request.form.get('message')
+        content = request.form.get('content')  # message -> contentに変更
         
-        if title and message:
+        if title and content:
             # メッセージ保存（ここでは処理をスキップ）
             flash('お問い合わせを送信しました。', 'success')
         else:
-            flash('タイトルとメッセージを入力してください。', 'danger')
+            flash('タイトルとメッセージを入力してください。', 'error')
     
     return render_template('main/contact.html')

@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, session, redirect, flash, url_for
-import sqlite3
+from app.utils import safe_database_query
 import os
 from werkzeug.utils import secure_filename
 
@@ -22,15 +22,17 @@ def user_profile():
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
     
-    # SQLインジェクション脆弱性
-    cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
-    user = cursor.fetchone()
-    conn.close()
-    
-    return render_template('user/profile.html', user=user)
+    try:
+        # SQLインジェクション脆弱性を維持
+        query = f"SELECT * FROM users WHERE id = {user_id}"
+        user_data = safe_database_query(query, fetch_one=True)
+        
+        return render_template('user/profile.html', user=user_data)
+        
+    except Exception as e:
+        flash(f'プロフィールの取得中にエラーが発生しました: {str(e)}', 'error')
+        return redirect('/')
 
 @bp.route('/user/profile/edit', methods=['GET', 'POST'])
 def edit_profile():
@@ -39,8 +41,9 @@ def edit_profile():
         flash('ログインが必要です', 'error')
         return redirect('/login')
     
+    user_id = session['user_id']
+    
     if request.method == 'POST':
-        user_id = session['user_id']
         email = request.form.get('email')
         address = request.form.get('address')
         phone = request.form.get('phone')
@@ -49,47 +52,47 @@ def edit_profile():
         profile_image = None
         if 'profile_image' in request.files:
             file = request.files['profile_image']
-            if file and file.filename != '':
-                # 脆弱性: ファイル名のサニタイズを無効化
-                filename = file.filename  # secure_filename()を使用しない
+            if file and file.filename != '' and allowed_file(file.filename):
+                # 脆弱性: ファイル名の検証なし
+                filename = file.filename  # secure_filename使わず
                 
-                # 脆弱性: パストラバーサル攻撃が可能
-                filepath = os.path.join(UPLOAD_FOLDER, filename)
-                
-                # ディレクトリが存在しない場合は作成
+                # アップロードディレクトリ作成
                 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
                 
-                # 脆弱性: ファイルサイズ制限なし
+                filepath = os.path.join(UPLOAD_FOLDER, filename)
                 file.save(filepath)
                 profile_image = f"uploads/profiles/{filename}"
                 
                 flash(f'ファイル {filename} をアップロードしました', 'success')
         
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # プロフィール画像がある場合のみ更新
-        if profile_image:
-            cursor.execute("UPDATE users SET email = ?, address = ?, phone = ?, profile_image = ? WHERE id = ?", 
-                          (email, address, phone, profile_image, user_id))
-        else:
-            cursor.execute("UPDATE users SET email = ?, address = ?, phone = ? WHERE id = ?", 
-                          (email, address, phone, user_id))
-        
-        conn.commit()
-        conn.close()
-        
-        flash('プロフィールを更新しました', 'success')
-        return redirect('/user/profile')
+        try:
+            # プロフィール画像がある場合のみ更新
+            if profile_image:
+                safe_database_query(
+                    "UPDATE users SET email = %s, address = %s, phone = %s WHERE id = %s", 
+                    (email, address, phone, user_id)
+                )
+            else:
+                safe_database_query(
+                    "UPDATE users SET email = %s, address = %s, phone = %s WHERE id = %s", 
+                    (email, address, phone, user_id)
+                )
+            
+            flash('プロフィールを更新しました', 'success')
+            return redirect('/user/profile')
+            
+        except Exception as e:
+            flash(f'プロフィール更新中にエラーが発生しました: {str(e)}', 'error')
+            return redirect('/user/profile')
     
-    user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
-    cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")
-    user = cursor.fetchone()
-    conn.close()
-    
-    return render_template('user/edit_profile.html', user=user)
+    try:
+        query = f"SELECT * FROM users WHERE id = {user_id}"
+        user = safe_database_query(query, fetch_one=True)
+        return render_template('user/edit_profile.html', user=user)
+        
+    except Exception as e:
+        flash(f'プロフィール情報の取得中にエラーが発生しました: {str(e)}', 'error')
+        return redirect('/')
 
 # 脆弱性: 任意のファイルダウンロードが可能
 @bp.route('/uploads/profiles/<filename>')
@@ -108,22 +111,22 @@ def download_file(filename):
         flash('ファイルが見つかりません', 'error')
         return redirect('/user/profile')
 
-@bp.route('/user/password/change', methods=['GET', 'POST'])
+@bp.route('/user/change_password', methods=['GET', 'POST'])
 def change_password():
-    """パスワード変更"""
+    """パスワード変更 (脆弱性含む)"""
     if 'user_id' not in session:
         flash('ログインが必要です', 'error')
         return redirect('/login')
     
+    user_id = session['user_id']
+    
     if request.method == 'POST':
-        user_id = session['user_id']
         current_password = request.form.get('current_password')
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
-        # 入力検証
-        if not current_password or not new_password or not confirm_password:
-            flash('すべての項目を入力してください', 'error')
+        if not current_password or not new_password:
+            flash('現在のパスワードと新しいパスワードを入力してください', 'error')
             return render_template('user/change_password.html')
         
         if new_password != confirm_password:
@@ -134,30 +137,27 @@ def change_password():
             flash('パスワードは6文字以上で入力してください', 'error')
             return render_template('user/change_password.html')
         
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 現在のパスワード確認
-        cursor.execute(f"SELECT password FROM users WHERE id = {user_id}")
-        user = cursor.fetchone()
-        
-        if not user:
-            conn.close()
-            flash('ユーザーが見つかりません', 'error')
-            return render_template('user/change_password.html')
-        
-        # 脆弱性: 平文パスワード比較
-        if user[0] != current_password:
-            conn.close()
-            flash('現在のパスワードが正しくありません', 'error')
-            return render_template('user/change_password.html')
-        
-        # パスワード更新
-        cursor.execute(f"UPDATE users SET password = '{new_password}' WHERE id = {user_id}")
-        conn.commit()
-        conn.close()
-        
-        flash('パスワードを変更しました', 'success')
-        return redirect('/user/profile')
-    
-    return render_template('user/change_password.html') 
+        try:
+            # 現在のパスワード確認
+            query = f"SELECT password FROM users WHERE id = {user_id}"
+            user_data = safe_database_query(query, fetch_one=True)
+            
+            if not user_data:
+                flash('ユーザーが見つかりません', 'error')
+                return render_template('user/change_password.html')
+            
+            # 脆弱性: 平文パスワード比較
+            if user_data['password'] != current_password:
+                flash('現在のパスワードが正しくありません', 'error')
+                return render_template('user/change_password.html')
+            
+            # パスワード更新 - SQLインジェクション脆弱性を維持
+            update_query = f"UPDATE users SET password = '{new_password}' WHERE id = {user_id}"
+            safe_database_query(update_query)
+            
+            flash('パスワードを変更しました', 'success')
+            return redirect('/user/profile')
+            
+        except Exception as e:
+            flash(f'パスワード変更中にエラーが発生しました: {str(e)}', 'error')
+            return render_template('user/change_password.html') 

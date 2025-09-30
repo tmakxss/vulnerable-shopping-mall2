@@ -1,5 +1,5 @@
 from flask import Blueprint, request, render_template, session, redirect, flash, send_file
-import sqlite3
+from app.utils import safe_database_query
 import os
 import uuid
 from werkzeug.utils import secure_filename
@@ -25,24 +25,19 @@ def compose_mail():
         subject = request.form.get('subject')
         content = request.form.get('content')
         
-        conn = None
         try:
-            conn = sqlite3.connect('database/shop.db')
-            cursor = conn.cursor()
-            
             # 受信者を探す
-            cursor.execute("SELECT id FROM users WHERE username = ?", (recipient_username,))
-            recipient = cursor.fetchone()
+            recipient_data = safe_database_query(
+                "SELECT id FROM users WHERE username = %s", 
+                (recipient_username,), fetch_one=True
+            )
             
-            if recipient:
+            if recipient_data:
                 # メールを保存
-                cursor.execute("""
-                    INSERT INTO emails (sender_id, recipient_id, subject, content) 
-                    VALUES (?, ?, ?, ?)
-                """, (session['user_id'], recipient[0], subject, content))
-                
-                email_id = cursor.lastrowid
-                # email_id = cursor.recipient 
+                safe_database_query("""
+                    INSERT INTO emails (sender_id, recipient_id, subject, body) 
+                    VALUES (%s, %s, %s, %s)
+                """, (session['user_id'], recipient_data['id'], subject, content))
                 
                 # 添付ファイル処理 (脆弱性含む)
                 if 'attachments' in request.files:
@@ -58,6 +53,22 @@ def compose_mail():
                             file_path = os.path.join(UPLOAD_FOLDER, stored_filename)
                             
                             # ディレクトリ作成
+                            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                            
+                            # ファイル保存
+                            file.save(file_path)
+                            
+                            flash(f'添付ファイル {original_filename} をアップロードしました', 'info')
+                
+                flash('メールを送信しました', 'success')
+                return redirect('/mail/sent')
+            else:
+                flash('受信者が見つかりません', 'error')
+                
+        except Exception as e:
+            flash(f'メールの送信中にエラーが発生しました: {str(e)}', 'error')
+    
+    return render_template('mail/compose.html')
                             os.makedirs(UPLOAD_FOLDER, exist_ok=True)
                             
                             # ファイル保存
