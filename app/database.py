@@ -67,10 +67,24 @@ class DatabaseManager:
                 
                 if fetch_one:
                     result = cursor.fetchone()
-                    return dict(result) if result else None
+                    if result:
+                        # PostgreSQLの場合は列名を取得してマッピング
+                        if self.db_type == 'postgresql':
+                            columns = [desc[0] for desc in cursor.description]
+                            return dict(zip(columns, result))
+                        else:
+                            return dict(result)
+                    return None
                 elif fetch_all:
                     results = cursor.fetchall()
-                    return [dict(row) for row in results]
+                    if results:
+                        # PostgreSQLの場合は列名を取得してマッピング
+                        if self.db_type == 'postgresql':
+                            columns = [desc[0] for desc in cursor.description]
+                            return [dict(zip(columns, row)) for row in results]
+                        else:
+                            return [dict(row) for row in results]
+                    return []
                 else:
                     conn.commit()
                     return cursor.rowcount
@@ -78,6 +92,7 @@ class DatabaseManager:
                 conn.close()
         except Exception as e:
             print(f"Database query error: {e}")
+            return None if fetch_one else ([] if fetch_all else 0)
             return [] if fetch_all else None
     
     def execute_script(self, script):
