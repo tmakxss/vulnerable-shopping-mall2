@@ -113,13 +113,46 @@ def delete_user(user_id):
     
     if is_admin.lower() in ['true', '1', 'yes']:
         try:
-            # PostgreSQLでユーザー削除
-            result = safe_database_query(
+            # 関連データをカスケード削除
+            # 1. ユーザーの注文に関連するorder_itemsを削除
+            safe_database_query("""
+                DELETE FROM order_items 
+                WHERE order_id IN (
+                    SELECT id FROM orders WHERE user_id = %s
+                )
+            """, (user_id,))
+            
+            # 2. ユーザーの注文を削除
+            safe_database_query(
+                "DELETE FROM orders WHERE user_id = %s",
+                (user_id,)
+            )
+            
+            # 3. ユーザーのレビューを削除
+            safe_database_query(
+                "DELETE FROM reviews WHERE user_id = %s",
+                (user_id,)
+            )
+            
+            # 4. ユーザーのカートを削除
+            safe_database_query(
+                "DELETE FROM cart WHERE user_id = %s",
+                (user_id,)
+            )
+            
+            # 5. ユーザーのメールを削除
+            safe_database_query(
+                "DELETE FROM emails WHERE sender_id = %s OR recipient_id = %s",
+                (user_id, user_id)
+            )
+            
+            # 6. 最後にユーザーを削除
+            safe_database_query(
                 "DELETE FROM users WHERE id = %s",
                 (user_id,)
             )
             
-            flash('ユーザーを削除しました', 'success')
+            flash('ユーザーと関連データを削除しました', 'success')
             return redirect('/admin/users')
         except Exception as e:
             flash(f'ユーザー削除エラー: {str(e)}', 'danger')
@@ -302,12 +335,19 @@ def delete_order(order_id):
     
     if user_id == '1':
         try:
+            # 関連するorder_itemsを先に削除
+            safe_database_query(
+                "DELETE FROM order_items WHERE order_id = %s",
+                (order_id,)
+            )
+            
+            # 注文を削除
             result = safe_database_query(
                 "DELETE FROM orders WHERE id = %s",
                 (order_id,)
             )
             
-            flash('注文を削除しました', 'success')
+            flash('注文と関連アイテムを削除しました', 'success')
             return redirect('/admin/orders')
         except Exception as e:
             flash(f'注文削除エラー: {str(e)}', 'danger')
