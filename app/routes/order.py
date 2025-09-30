@@ -27,23 +27,23 @@ def checkout():
             order_data = safe_database_query("""
                 INSERT INTO orders (user_id, shipping_address, total_amount, status, created_at) 
                 VALUES (%s, %s, %s, 'pending', CURRENT_TIMESTAMP) RETURNING id
-            """, (user_id, shipping_address, total_amount))
+            """, (user_id, shipping_address, total_amount), fetch_one=True)
             
-            order_id = order_data[0][0] if order_data else None
+            order_id = order_data['id'] if order_data else None
             
             # カートアイテムを注文アイテムに移動
             cart_items = safe_database_query(
                 "SELECT product_id, quantity FROM cart WHERE user_id = %s", 
-                (user_id,)
+                (user_id,), fetch_all=True
             )
             
             for item in cart_items:
                 # 商品価格取得
                 price_data = safe_database_query(
                     "SELECT price FROM products WHERE id = %s", 
-                    (item[0],)
+                    (item[0],), fetch_one=True
                 )
-                price = price_data[0][0] if price_data else 0
+                price = price_data['price'] if price_data else 0
                 
                 safe_database_query("""
                     INSERT INTO order_items (order_id, product_id, quantity, price) 
@@ -69,13 +69,13 @@ def checkout():
             FROM cart c 
             JOIN products p ON c.product_id = p.id 
             WHERE c.user_id = %s
-        """, (user_id,))
-        
-        total = sum(float(item[3]) for item in cart_items) if cart_items else 0
+        """, (user_id,), fetch_all=True)
         
         if not cart_items:
             flash('カートが空です', 'error')
             return redirect('/cart')
+            
+        total = sum(float(item[3]) for item in cart_items)
         
         return render_template('order/checkout.html', cart_items=cart_items, total=total)
         
@@ -95,13 +95,13 @@ def order_detail(order_id):
     try:
         # SQLインジェクション脆弱性を維持 - 直接文字列挿入
         query = f"SELECT * FROM orders WHERE id = {order_id} AND user_id = {user_id}"
-        order_data = safe_database_query(query)
+        order_data = safe_database_query(query, fetch_all=True)
         
         if not order_data:
             flash('注文が見つかりません', 'error')
             return redirect('/orders')
         
-        order = order_data[0]
+        order = order_data[0]  # リストの最初の要素
         
         # 注文アイテム照会
         items_query = f"""
@@ -110,7 +110,7 @@ def order_detail(order_id):
             JOIN products p ON oi.product_id = p.id 
             WHERE oi.order_id = {order_id}
         """
-        items = safe_database_query(items_query)
+        items = safe_database_query(items_query, fetch_all=True)
         
         return render_template('order/detail.html', order=order, items=items)
         
@@ -130,7 +130,7 @@ def my_orders():
     try:
         # SQLインジェクション脆弱性を維持
         query = f"SELECT * FROM orders WHERE user_id = {user_id} ORDER BY id ASC"
-        orders = safe_database_query(query)
+        orders = safe_database_query(query, fetch_all=True)
         
         return render_template('order/list.html', orders=orders)
         
@@ -151,14 +151,14 @@ def cancel_order(order_id):
         # 本人注文のみキャンセル可能
         order_data = safe_database_query(
             "SELECT status FROM orders WHERE id = %s AND user_id = %s", 
-            (order_id, user_id)
+            (order_id, user_id), fetch_one=True
         )
         
         if not order_data:
             flash('注文が見つかりません', 'error')
             return redirect('/orders')
         
-        order_status = order_data[0][0]
+        order_status = order_data['status'] if order_data else None
         
         if order_status != 'pending':
             flash('すでに処理された注文はキャンセルできません', 'error')

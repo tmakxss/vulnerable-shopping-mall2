@@ -17,7 +17,7 @@ def view_cart():
             SELECT c.id, p.name, p.price, c.quantity, p.id as product_id, p.image_url
             FROM cart c 
             JOIN products p ON c.product_id = p.id 
-            WHERE c.user_id = ?
+            WHERE c.user_id = %s
         """, (user_id,), fetch_all=True, default_value=[])
         
         # カートアイテムを配列形式に変換
@@ -57,7 +57,7 @@ def add_to_cart():
         # CSRFトークン検証なし - 脆弱性
         # 既存のカートアイテム確認
         existing = safe_database_query(
-            "SELECT * FROM cart WHERE user_id = ? AND product_id = ?", 
+            "SELECT * FROM cart WHERE user_id = %s AND product_id = %s", 
             (user_id, product_id),
             fetch_one=True
         )
@@ -65,13 +65,13 @@ def add_to_cart():
         if existing:
             # 数量更新
             safe_database_query(
-                "UPDATE cart SET quantity = quantity + ? WHERE user_id = ? AND product_id = ?", 
+                "UPDATE cart SET quantity = quantity + %s WHERE user_id = %s AND product_id = %s", 
                 (quantity, user_id, product_id)
             )
         else:
             # 新規アイテム追加
             safe_database_query(
-                "INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)", 
+                "INSERT INTO cart (user_id, product_id, quantity) VALUES (%s, %s, %s)", 
                 (user_id, product_id, quantity)
             )
         
@@ -94,7 +94,7 @@ def remove_from_cart(cart_id):
     try:
         # IDOR脆弱性 - ユーザー確認なし
         safe_database_query(
-            "DELETE FROM cart WHERE id = ?", 
+            "DELETE FROM cart WHERE id = %s", 
             (cart_id,)
         )
         flash('カートから削除しました', 'success')
@@ -115,7 +115,7 @@ def clear_cart():
     
     try:
         safe_database_query(
-            "DELETE FROM cart WHERE user_id = ?", 
+            "DELETE FROM cart WHERE user_id = %s", 
             (user_id,)
         )
         flash('カートをクリアしました', 'success')
