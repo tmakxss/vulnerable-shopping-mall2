@@ -70,21 +70,21 @@ def index():
                 default_value=[]
             )
             
-            # 商品データの安全な処理
+            # 商品データの安全な処理（テンプレート互換性のため配列形式で提供）
             safe_featured_products = []
             for product in featured_products or []:
                 if isinstance(product, dict):
-                    safe_product = {}
-                    for key, value in product.items():
-                        if key == 'price':
-                            # 価格の安全な変換
-                            try:
-                                safe_product[key] = float(value) if value is not None else 0.0
-                            except (ValueError, TypeError):
-                                safe_product[key] = 0.0
-                        else:
-                            safe_product[key] = value
-                    safe_featured_products.append(safe_product)
+                    # テンプレートが期待する配列形式に変換
+                    product_array = [
+                        product.get('id', 0),
+                        product.get('name', ''),
+                        product.get('description', ''),
+                        float(product.get('price', 0)) if product.get('price') is not None else 0.0,
+                        product.get('stock', 0),
+                        product.get('category', ''),
+                        product.get('image_url') or '/static/test.jpeg'  # デフォルト画像
+                    ]
+                    safe_featured_products.append(product_array)
             
             featured_products = safe_featured_products
             
@@ -92,32 +92,39 @@ def index():
             print(f"Featured products error: {e}")
             featured_products = []
         
-        # レビュー検索機能
+        # レビュー検索機能（安全バージョン）
         review_query = request.args.get('review_search', '')
         recent_reviews = []
         
-        if review_query:
-            # レビュー検索 (SQLインジェクション対策済み、XSS脆弱性は残存)
-            recent_reviews = safe_database_query("""
-                SELECT r.*, u.username, p.name as product_name, p.image_url 
-                FROM reviews r 
-                JOIN users u ON r.user_id = u.id 
-                JOIN products p ON r.product_id = p.id 
-                WHERE r.comment LIKE ? OR u.username LIKE ? OR p.name LIKE ?
-                ORDER BY r.created_at DESC LIMIT 10
-            """, (f'%{review_query}%', f'%{review_query}%', f'%{review_query}%'),
-            fetch_all=True,
-            default_value=[]
-            )
-        else:
-            # 最新レビューを取得
-            recent_reviews = safe_database_query("""
-                SELECT r.*, u.username, p.name as product_name, p.image_url 
-                FROM reviews r 
-                JOIN users u ON r.user_id = u.id 
-                JOIN products p ON r.product_id = p.id 
-                ORDER BY r.created_at DESC LIMIT 10
-            """, fetch_all=True, default_value=[])
+        try:
+            if review_query:
+                # レビュー検索 (SQLインジェクション対策済み、XSS脆弱性は残存)
+                recent_reviews = safe_database_query("""
+                    SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
+                           u.username, p.name as product_name
+                    FROM reviews r 
+                    JOIN users u ON r.user_id = u.id 
+                    JOIN products p ON r.product_id = p.id 
+                    WHERE r.comment LIKE ? OR u.username LIKE ? OR p.name LIKE ?
+                    ORDER BY r.created_at DESC LIMIT 10
+                """, (f'%{review_query}%', f'%{review_query}%', f'%{review_query}%'),
+                fetch_all=True,
+                default_value=[]
+                )
+            else:
+                # 最新レビューを取得（安全バージョン）
+                recent_reviews = safe_database_query("""
+                    SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
+                           u.username, p.name as product_name
+                    FROM reviews r 
+                    JOIN users u ON r.user_id = u.id 
+                    JOIN products p ON r.product_id = p.id 
+                    ORDER BY r.created_at DESC LIMIT 10
+                """, fetch_all=True, default_value=[])
+                
+        except Exception as e:
+            print(f"Reviews error: {e}")
+            recent_reviews = []
         
         return render_template('main/index.html', 
                              featured_products=featured_products, 
