@@ -28,7 +28,23 @@ def user_profile():
         query = f"SELECT * FROM users WHERE id = {user_id}"
         user_data = safe_database_query(query, fetch_one=True)
         
-        return render_template('user/profile.html', user=user_data)
+        if user_data:
+            # テンプレート互換性のため辞書を配列に変換
+            user = [
+                user_data.get('id', 0),                    # [0]: id
+                user_data.get('username', ''),             # [1]: username
+                user_data.get('password', ''),             # [2]: password
+                user_data.get('email', ''),                # [3]: email
+                user_data.get('address', ''),              # [4]: address
+                user_data.get('phone', ''),                # [5]: phone
+                user_data.get('is_admin', False),          # [6]: is_admin
+                user_data.get('created_at', ''),           # [7]: created_at
+                user_data.get('profile_image', None),      # [8]: profile_image
+            ]
+        else:
+            user = None
+        
+        return render_template('user/profile.html', user=user)
         
     except Exception as e:
         flash(f'プロフィールの取得中にエラーが発生しました: {str(e)}', 'error')
@@ -66,11 +82,11 @@ def edit_profile():
                 flash(f'ファイル {filename} をアップロードしました', 'success')
         
         try:
-            # プロフィール画像がある場合のみ更新
+            # プロフィール更新
             if profile_image:
                 safe_database_query(
-                    "UPDATE users SET email = %s, address = %s, phone = %s WHERE id = %s", 
-                    (email, address, phone, user_id)
+                    "UPDATE users SET email = %s, address = %s, phone = %s, profile_image = %s WHERE id = %s", 
+                    (email, address, phone, profile_image, user_id)
                 )
             else:
                 safe_database_query(
@@ -87,7 +103,24 @@ def edit_profile():
     
     try:
         query = f"SELECT * FROM users WHERE id = {user_id}"
-        user = safe_database_query(query, fetch_one=True)
+        user_data = safe_database_query(query, fetch_one=True)
+        
+        if user_data:
+            # テンプレート互換性のため辞書を配列に変換
+            user = [
+                user_data.get('id', 0),                    # [0]: id
+                user_data.get('username', ''),             # [1]: username
+                user_data.get('password', ''),             # [2]: password
+                user_data.get('email', ''),                # [3]: email
+                user_data.get('address', ''),              # [4]: address
+                user_data.get('phone', ''),                # [5]: phone
+                user_data.get('is_admin', False),          # [6]: is_admin
+                user_data.get('created_at', ''),           # [7]: created_at
+                user_data.get('profile_image', None),      # [8]: profile_image
+            ]
+        else:
+            user = None
+            
         return render_template('user/edit_profile.html', user=user)
         
     except Exception as e:

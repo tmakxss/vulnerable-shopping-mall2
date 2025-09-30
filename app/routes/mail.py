@@ -92,14 +92,11 @@ def inbox():
         
     except Exception as e:
         flash(f'受信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
-        return render_template('mail/inbox.html', emails=[])
-        return render_template('mail/inbox.html', emails=emails)
+        return render_template('mail/inbox.html', emails=emails_data)
+        
     except Exception as e:
-        flash(f'メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
-        return redirect('/')
-    finally:
-        if conn:
-            conn.close()
+        flash(f'受信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
+        return render_template('mail/inbox.html', emails=[])
 
 @bp.route('/mail/sent')
 def sent_mail():
@@ -191,11 +188,8 @@ def read_mail(email_id):
             flash('メールが見つかりません', 'error')
             return redirect('/mail/inbox')
     except Exception as e:
-        flash(f'メールの読み取り中にエラーが発生しました: {str(e)}', 'error')
+        flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/mail/inbox')
-    finally:
-        if conn:
-            conn.close()
 
 @bp.route('/mail/attachment/<int:attachment_id>')
 def download_attachment(attachment_id):
@@ -203,20 +197,16 @@ def download_attachment(attachment_id):
     if 'user_id' not in session:
         return redirect('/login')
     
-    user_id = session['user_id']
-    conn = None
+    # 脆弱性: 添付ファイルの権限チェックなし
+    # 任意のファイルダウンロード可能
     try:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 添付ファイル情報を取得
-        cursor.execute("""
-            SELECT ea.*, e.sender_id, e.recipient_id 
-            FROM email_attachments ea
-            JOIN emails e ON ea.email_id = e.id
-            WHERE ea.id = ?
-        """, (attachment_id,))
-        
+        file_path = f"/tmp/attachment_{attachment_id}"
+        if os.path.exists(file_path):
+            return send_file(file_path, as_attachment=True)
+        else:
+            flash('ファイルが見つかりません', 'error')
+            return redirect('/mail/inbox')
+            
     except Exception as e:
         flash(f'ファイルダウンロード中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/mail/inbox')
