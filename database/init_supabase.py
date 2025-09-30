@@ -1,7 +1,13 @@
 import os
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from urllib.parse import urlparse
 from dotenv import load_dotenv
+
+# PostgreSQL用ドライバー（Vercel対応）
+try:
+    import pg8000
+    PG_AVAILABLE = True
+except ImportError:
+    PG_AVAILABLE = False
 
 # 環境変数をロード
 load_dotenv()
@@ -13,8 +19,22 @@ def init_supabase_database():
         print("❌ SUPABASE_DB_URL environment variable is required")
         return False
     
+    if not PG_AVAILABLE:
+        print("❌ pg8000 driver is not available")
+        return False
+    
     try:
-        conn = psycopg2.connect(db_url)
+        # URLをパース
+        parsed = urlparse(db_url)
+        db_config = {
+            'host': parsed.hostname,
+            'port': parsed.port or 5432,
+            'database': parsed.path[1:],  # '/'を除去
+            'user': parsed.username,
+            'password': parsed.password
+        }
+        
+        conn = pg8000.connect(**db_config)
         cursor = conn.cursor()
         
         print("🗄️  Supabaseデータベースの初期化を開始...")
