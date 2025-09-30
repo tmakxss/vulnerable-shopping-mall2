@@ -64,12 +64,12 @@ def admin_users():
             if search:
                 # SQLインジェクション脆弱性を保持しつつPostgreSQL対応
                 all_users_raw = safe_database_query(
-                    f"SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%' ORDER BY created_at ASC",
+                    f"SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%' ORDER BY id ASC",
                     fetch_all=True, default_value=[]
                 )
             else:
                 all_users_raw = safe_database_query(
-                    "SELECT id, username, email, address, phone, is_admin, created_at FROM users ORDER BY created_at ASC",
+                    "SELECT id, username, email, address, phone, is_admin, created_at FROM users ORDER BY id ASC",
                     fetch_all=True, default_value=[]
                 )
             
@@ -79,7 +79,7 @@ def admin_users():
                 if isinstance(user, dict):
                     user_array = [
                         user.get('id', 0),              # 0: ID
-                        user.get('email', ''),          # 1: ユーザーID(メール)
+                        user.get('username', ''),       # 1: ユーザーID(username)
                         user.get('email', ''),          # 2: メールアドレス
                         user.get('address', ''),        # 3: 住所
                         user.get('phone', ''),          # 4: 電話番号
@@ -166,7 +166,7 @@ def edit_user(user_id):
                 # dict形式をarray形式に変換 (テンプレートの期待順序に合わせる)
                 user = [
                     user_dict.get('id', ''),              # 0: ID
-                    user_dict.get('email', ''),           # 1: ユーザーID(メール)
+                    user_dict.get('username', ''),        # 1: ユーザーID(username)
                     user_dict.get('email', ''),           # 2: メールアドレス 
                     user_dict.get('address', ''),         # 3: 住所
                     user_dict.get('phone', ''),           # 4: 電話番号
@@ -200,10 +200,11 @@ def admin_orders():
                 SELECT o.id, o.user_id, o.total_amount, o.status, 
                        COALESCE(o.shipping_address, '未設定') as shipping_address, 
                        o.created_at,
+                       COALESCE(u.username, '不明') as username,
                        COALESCE(u.email, '不明') as user_email
                 FROM orders o 
                 LEFT JOIN users u ON o.user_id = u.id 
-                ORDER BY o.created_at DESC
+                ORDER BY o.id ASC
             """, fetch_all=True, default_value=[])
             
             print(f"Orders raw data: {orders_raw}")  # デバッグ用
@@ -215,7 +216,7 @@ def admin_orders():
                     if isinstance(order, dict):
                         order_array = [
                             order.get('id', 0),                     # 0: 注文ID
-                            order.get('user_email', '不明'),        # 1: ユーザー名(メール)
+                            order.get('username', '不明'),        # 1: ユーザー名(username)
                             order.get('shipping_address', '未設定'), # 2: 配送先
                             '未設定',                               # 3: 支払い方法(固定値)
                             order.get('total_amount', 0),           # 4: 合計金額
@@ -266,7 +267,7 @@ def edit_order(order_id):
             
             # 注文情報を取得 (実際に存在するカラムのみ)
             order_dict = safe_database_query(
-                "SELECT o.id, o.user_id, o.total_amount, o.status, COALESCE(o.shipping_address, '未設定') as shipping_address, o.created_at, COALESCE(u.email, '不明') as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
+                "SELECT o.id, o.user_id, o.total_amount, o.status, COALESCE(o.shipping_address, '未設定') as shipping_address, o.created_at, COALESCE(u.username, '不明') as username, COALESCE(u.email, '不明') as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
                 (order_id,),
                 fetch_one=True
             )
@@ -276,7 +277,7 @@ def edit_order(order_id):
                 order = [
                     order_dict.get('id', ''),                    # 0: ID
                     order_dict.get('user_id', ''),               # 1: ユーザーID
-                    order_dict.get('user_email', ''),            # 2: ユーザー名(メール)
+                    order_dict.get('username', ''),              # 2: ユーザー名(username)
                     order_dict.get('total_amount', ''),          # 3: 合計金額
                     order_dict.get('status', ''),                # 4: ステータス
                     order_dict.get('shipping_address', ''),      # 5: 配送先
