@@ -79,11 +79,12 @@ def admin_users():
                 if isinstance(user, dict):
                     user_array = [
                         user.get('id', 0),              # 0: ID
-                        user.get('email', ''),          # 1: メールアドレス
-                        user.get('address', ''),        # 2: 住所
-                        user.get('phone', ''),          # 3: 電話番号
-                        user.get('is_admin', False),    # 4: 管理者
-                        user.get('created_at', '')      # 5: 作成日
+                        user.get('email', ''),          # 1: ユーザーID(メール)
+                        user.get('email', ''),          # 2: メールアドレス
+                        user.get('address', ''),        # 3: 住所
+                        user.get('phone', ''),          # 4: 電話番号
+                        user.get('is_admin', False),    # 5: 管理者
+                        user.get('created_at', '')      # 6: 作成日
                     ]
                     all_users.append(user_array)
             
@@ -165,11 +166,12 @@ def edit_user(user_id):
                 # dict形式をarray形式に変換 (テンプレートの期待順序に合わせる)
                 user = [
                     user_dict.get('id', ''),              # 0: ID
-                    user_dict.get('email', ''),           # 1: メールアドレス 
-                    user_dict.get('address', ''),         # 2: 住所
-                    user_dict.get('phone', ''),           # 3: 電話番号
-                    user_dict.get('is_admin', False),     # 4: 管理者
-                    user_dict.get('created_at', '')       # 5: 作成日
+                    user_dict.get('email', ''),           # 1: ユーザーID(メール)
+                    user_dict.get('email', ''),           # 2: メールアドレス 
+                    user_dict.get('address', ''),         # 3: 住所
+                    user_dict.get('phone', ''),           # 4: 電話番号
+                    user_dict.get('is_admin', False),     # 5: 管理者
+                    user_dict.get('created_at', '')       # 6: 作成日
                 ]
                 return render_template('admin/edit_user.html', user=user)
             else:
@@ -184,13 +186,14 @@ def edit_user(user_id):
 @bp.route('/admin/orders')
 def admin_orders():
     """注文管理"""
-    is_admin = request.cookies.get('is_admin', 'false')
-    admin_check = is_admin.lower() in ['true', '1', 'yes']
+    user_id = request.cookies.get('user_id')
     
-    if admin_check:
+    if user_id == '1':
         try:
             page = request.args.get('page', 1, type=int)
             per_page = 20
+            
+            print("Starting order data retrieval...")  # デバッグ
             
             # 注文データを取得 (特定のカラムを選択)
             orders_raw = safe_database_query("""
@@ -500,7 +503,7 @@ def admin_reviews():
     if user_id == '1':
         try:
             search = request.args.get('search', '')
-            page = request.args.get('page', 1, type=int)
+            page = int(request.args.get('page', '1'))  # 明示的にint変換
             per_page = 20
             
             if search:

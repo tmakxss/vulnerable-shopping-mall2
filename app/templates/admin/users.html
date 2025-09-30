@@ -31,6 +31,7 @@ content %}
         <thead>
           <tr>
             <th>ID</th>
+            <th>ユーザーID</th>
             <th>メールアドレス</th>
             <th>住所</th>
             <th>電話番号</th>
@@ -46,10 +47,9 @@ content %}
           <td>{{ user[1] or '-' }}</td>
           <td>{{ user[2] or '-' }}</td>
           <td>{{ user[3] or '-' }}</td>
-          <td>{% if user[4] %}はい{% else %}いいえ{% endif %}</td>
           <td>{{ user[4] or '-' }}</td>
-          <td>{% if user[4] %}はい{% else %}いいえ{% endif %}</td>
-          <td>{{ user[5] or '-' }}</td>
+          <td>{% if user[5] %}はい{% else %}いいえ{% endif %}</td>
+          <td>{{ user[6] or '-' }}</td>
           <td>
             <a
               href="/admin/users/edit/{{ user[0] }}"
