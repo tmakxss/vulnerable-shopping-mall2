@@ -195,11 +195,10 @@ def admin_orders():
             
             print("Starting order data retrieval...")  # デバッグ
             
-            # 注文データを取得 (特定のカラムを選択)
+            # 注文データを取得 (実際に存在するカラムのみ)
             orders_raw = safe_database_query("""
                 SELECT o.id, o.user_id, o.total_amount, o.status, 
                        COALESCE(o.shipping_address, '未設定') as shipping_address, 
-                       COALESCE(o.payment_method, '未設定') as payment_method, 
                        o.created_at,
                        COALESCE(u.email, '不明') as user_email
                 FROM orders o 
@@ -218,7 +217,7 @@ def admin_orders():
                             order.get('id', 0),                     # 0: 注文ID
                             order.get('user_email', '不明'),        # 1: ユーザー名(メール)
                             order.get('shipping_address', '未設定'), # 2: 配送先
-                            order.get('payment_method', '未設定'),   # 3: 支払い方法
+                            '未設定',                               # 3: 支払い方法(固定値)
                             order.get('total_amount', 0),           # 4: 合計金額
                             order.get('status', '未確定'),           # 5: ステータス
                             order.get('created_at', ''),            # 6: 注文日
@@ -254,21 +253,20 @@ def edit_order(order_id):
         try:
             if request.method == 'POST':
                 shipping_address = request.form.get('shipping_address')
-                payment_method = request.form.get('payment_method')
                 total_amount = request.form.get('total_amount')
                 status = request.form.get('status')
                 
                 safe_database_query(
-                    "UPDATE orders SET shipping_address=%s, payment_method=%s, total_amount=%s, status=%s WHERE id=%s",
-                    (shipping_address, payment_method, total_amount, status, order_id)
+                    "UPDATE orders SET shipping_address=%s, total_amount=%s, status=%s WHERE id=%s",
+                    (shipping_address, total_amount, status, order_id)
                 )
                 
                 flash('注文を更新しました', 'success')
                 return redirect('/admin/orders')
             
-            # 注文情報を取得
+            # 注文情報を取得 (実際に存在するカラムのみ)
             order_dict = safe_database_query(
-                "SELECT o.id, o.user_id, o.total_amount, o.status, COALESCE(o.shipping_address, '未設定') as shipping_address, COALESCE(o.payment_method, '未設定') as payment_method, o.created_at, COALESCE(u.email, '不明') as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
+                "SELECT o.id, o.user_id, o.total_amount, o.status, COALESCE(o.shipping_address, '未設定') as shipping_address, o.created_at, COALESCE(u.email, '不明') as user_email FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
                 (order_id,),
                 fetch_one=True
             )
@@ -282,7 +280,7 @@ def edit_order(order_id):
                     order_dict.get('total_amount', ''),          # 3: 合計金額
                     order_dict.get('status', ''),                # 4: ステータス
                     order_dict.get('shipping_address', ''),      # 5: 配送先
-                    order_dict.get('payment_method', ''),        # 6: 支払い方法
+                    '未設定',                                   # 6: 支払い方法(固定値)
                     order_dict.get('created_at', '')             # 7: 作成日
                 ]
                 return render_template('admin/edit_order.html', order=order)
