@@ -144,7 +144,18 @@ def order_detail(order_id):
             flash('注文が見つかりません', 'error')
             return redirect('/orders')
         
-        order = order_data[0]  # リストの最初の要素
+        order_dict = order_data[0]  # リストの最初の要素
+        
+        # 注文データを配列形式に変換（テンプレート互換性のため）
+        order = [
+            order_dict.get('id', 0),                    # [0]: id
+            order_dict.get('user_id', 0),               # [1]: user_id
+            order_dict.get('shipping_address', ''),     # [2]: shipping_address
+            'credit_card',                              # [3]: payment_method (仮設定)
+            float(order_dict.get('total_amount', 0.0)), # [4]: total_amount
+            order_dict.get('status', 'pending'),       # [5]: status
+            order_dict.get('created_at', ''),           # [6]: created_at
+        ]
         
         # 注文アイテム照会
         items_query = f"""
@@ -153,7 +164,22 @@ def order_detail(order_id):
             JOIN products p ON oi.product_id = p.id 
             WHERE oi.order_id = {order_id}
         """
-        items = safe_database_query(items_query, fetch_all=True)
+        items_data = safe_database_query(items_query, fetch_all=True)
+        
+        # アイテムデータも配列形式に変換
+        items = []
+        for item in items_data:
+            if isinstance(item, dict):
+                item_array = [
+                    item.get('id', 0),           # [0]: order_item_id
+                    item.get('order_id', 0),     # [1]: order_id
+                    item.get('product_id', 0),   # [2]: product_id
+                    item.get('quantity', 0),     # [3]: quantity
+                    item.get('price', 0.0),      # [4]: price
+                    item.get('name', ''),        # [5]: product_name
+                    item.get('price', 0.0),      # [6]: product_price
+                ]
+                items.append(item_array)
         
         return render_template('order/detail.html', order=order, items=items)
         
@@ -173,7 +199,26 @@ def my_orders():
     try:
         # SQLインジェクション脆弱性を維持
         query = f"SELECT * FROM orders WHERE user_id = {user_id} ORDER BY id ASC"
-        orders = safe_database_query(query, fetch_all=True)
+        orders_data = safe_database_query(query, fetch_all=True)
+        
+        print(f"DEBUG: orders_data = {orders_data}")
+        
+        # 注文データを配列形式に変換（テンプレート互換性のため）
+        orders = []
+        for order in orders_data:
+            if isinstance(order, dict):
+                order_array = [
+                    order.get('id', 0),                    # [0]: id
+                    order.get('user_id', 0),               # [1]: user_id
+                    order.get('shipping_address', ''),     # [2]: shipping_address
+                    'credit_card',                         # [3]: payment_method (仮設定)
+                    float(order.get('total_amount', 0.0)), # [4]: total_amount
+                    order.get('status', 'pending'),       # [5]: status
+                    order.get('created_at', ''),           # [6]: created_at
+                ]
+                orders.append(order_array)
+        
+        print(f"DEBUG: converted orders = {orders}")
         
         return render_template('order/list.html', orders=orders)
         
