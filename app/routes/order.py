@@ -41,14 +41,14 @@ def checkout():
                 # 商品価格取得
                 price_data = safe_database_query(
                     "SELECT price FROM products WHERE id = %s", 
-                    (item[0],), fetch_one=True
+                    (item['product_id'],), fetch_one=True
                 )
                 price = price_data['price'] if price_data else 0
                 
                 safe_database_query("""
                     INSERT INTO order_items (order_id, product_id, quantity, price) 
                     VALUES (%s, %s, %s, %s)
-                """, (order_id, item[0], item[1], price))
+                """, (order_id, item['product_id'], item['quantity'], price))
             
             # カートを空にする
             safe_database_query("DELETE FROM cart WHERE user_id = %s", (user_id,))
@@ -71,11 +71,15 @@ def checkout():
             WHERE c.user_id = %s
         """, (user_id,), fetch_all=True)
         
+        print(f"DEBUG: cart_items = {cart_items}, type = {type(cart_items)}")
+        
         if not cart_items:
             flash('カートが空です', 'error')
             return redirect('/cart')
-            
-        total = sum(float(item[3]) for item in cart_items)
+        
+        # PostgreSQLからはdict形式で返される
+        total = sum(float(item['total']) for item in cart_items)
+        print(f"DEBUG: total = {total}")
         
         return render_template('order/checkout.html', cart_items=cart_items, total=total)
         
