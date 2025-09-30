@@ -79,12 +79,11 @@ def admin_users():
                 if isinstance(user, dict):
                     user_array = [
                         user.get('id', 0),              # 0: ID
-                        user.get('username', ''),       # 1: ユーザー名
-                        user.get('email', ''),          # 2: メールアドレス
-                        user.get('address', ''),        # 3: 住所
-                        user.get('phone', ''),          # 4: 電話番号
-                        user.get('is_admin', False),    # 5: 管理者
-                        user.get('created_at', '')      # 6: 作成日
+                        user.get('email', ''),          # 1: メールアドレス
+                        user.get('address', ''),        # 2: 住所
+                        user.get('phone', ''),          # 3: 電話番号
+                        user.get('is_admin', False),    # 4: 管理者
+                        user.get('created_at', '')      # 5: 作成日
                     ]
                     all_users.append(user_array)
             
@@ -135,7 +134,6 @@ def edit_user(user_id):
     if is_admin.lower() in ['true', '1', 'yes']:
         try:
             if request.method == 'POST':
-                username = request.form.get('username')
                 email = request.form.get('email')
                 address = request.form.get('address')
                 phone = request.form.get('phone')
@@ -144,13 +142,13 @@ def edit_user(user_id):
                 
                 if new_password:
                     safe_database_query(
-                        "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s, password=%s WHERE id=%s",
-                        (username, email, address, phone, is_admin_check, new_password, user_id)
+                        "UPDATE users SET email=%s, address=%s, phone=%s, is_admin=%s, password=%s WHERE id=%s",
+                        (email, address, phone, is_admin_check, new_password, user_id)
                     )
                 else:
                     safe_database_query(
-                        "UPDATE users SET username=%s, email=%s, address=%s, phone=%s, is_admin=%s WHERE id=%s",
-                        (username, email, address, phone, is_admin_check, user_id)
+                        "UPDATE users SET email=%s, address=%s, phone=%s, is_admin=%s WHERE id=%s",
+                        (email, address, phone, is_admin_check, user_id)
                     )
                 
                 flash('ユーザーを更新しました', 'success')
@@ -167,12 +165,11 @@ def edit_user(user_id):
                 # dict形式をarray形式に変換 (テンプレートの期待順序に合わせる)
                 user = [
                     user_dict.get('id', ''),              # 0: ID
-                    user_dict.get('username', ''),        # 1: ユーザー名
-                    user_dict.get('email', ''),           # 2: メールアドレス
-                    user_dict.get('address', ''),         # 3: 住所
-                    user_dict.get('phone', ''),           # 4: 電話番号
-                    user_dict.get('is_admin', False),     # 5: 管理者
-                    user_dict.get('created_at', '')       # 6: 作成日
+                    user_dict.get('email', ''),           # 1: メールアドレス 
+                    user_dict.get('address', ''),         # 2: 住所
+                    user_dict.get('phone', ''),           # 3: 電話番号
+                    user_dict.get('is_admin', False),     # 4: 管理者
+                    user_dict.get('created_at', '')       # 5: 作成日
                 ]
                 return render_template('admin/edit_user.html', user=user)
             else:
@@ -197,10 +194,11 @@ def admin_orders():
             
             # 注文データを取得 (支払い方法を追加)
             orders_raw = safe_database_query("""
-                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.payment_method, o.created_at,
-                       u.username
+                SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, 
+                       COALESCE(o.payment_method, '未設定') as payment_method, o.created_at,
+                       COALESCE(u.email, '不明') as username
                 FROM orders o 
-                JOIN users u ON o.user_id = u.id 
+                LEFT JOIN users u ON o.user_id = u.id 
                 ORDER BY o.created_at DESC
             """, fetch_all=True, default_value=[])
             
@@ -260,7 +258,7 @@ def edit_order(order_id):
             
             # 注文情報を取得
             order_dict = safe_database_query(
-                "SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, o.payment_method, o.created_at, u.username FROM orders o JOIN users u ON o.user_id = u.id WHERE o.id = %s",
+                "SELECT o.id, o.user_id, o.total_amount, o.status, o.shipping_address, COALESCE(o.payment_method, '未設定') as payment_method, o.created_at, COALESCE(u.email, '不明') as username FROM orders o LEFT JOIN users u ON o.user_id = u.id WHERE o.id = %s",
                 (order_id,),
                 fetch_one=True
             )
@@ -501,22 +499,22 @@ def admin_reviews():
             if search:
                 reviews_raw = safe_database_query(f"""
                     SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
-                           u.username, p.name as product_name 
+                           COALESCE(u.email, '不明') as username, COALESCE(p.name, '削除済み') as product_name 
                     FROM reviews r 
-                    JOIN users u ON r.user_id = u.id 
-                    JOIN products p ON r.product_id = p.id 
-                    WHERE p.name LIKE '%{search}%' OR u.username LIKE '%{search}%'
+                    LEFT JOIN users u ON r.user_id = u.id 
+                    LEFT JOIN products p ON r.product_id = p.id 
+                    WHERE (p.name LIKE '%{search}%' OR u.email LIKE '%{search}%')
                     ORDER BY r.id ASC
-                """)
+                """, fetch_all=True, default_value=[])
             else:
                 reviews_raw = safe_database_query("""
                     SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at,
-                           u.username, p.name as product_name 
+                           COALESCE(u.email, '不明') as username, COALESCE(p.name, '削除済み') as product_name 
                     FROM reviews r 
-                    JOIN users u ON r.user_id = u.id 
-                    JOIN products p ON r.product_id = p.id 
+                    LEFT JOIN users u ON r.user_id = u.id 
+                    LEFT JOIN products p ON r.product_id = p.id 
                     ORDER BY r.id ASC
-                """)
+                """, fetch_all=True, default_value=[])
             
             # PostgreSQLの結果をarray形式に変換
             all_reviews = []
@@ -638,7 +636,6 @@ def system_info():
             'platform': platform.platform(),
             'python_version': platform.python_version(),
             'cwd': os.getcwd(),
-            'env_vars': dict(os.environ),
             'files': os.listdir('.') if os.path.exists('.') else []
         }
         

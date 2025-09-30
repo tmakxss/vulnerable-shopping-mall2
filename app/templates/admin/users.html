@@ -15,7 +15,7 @@ content %}
           type="text"
           class="form-control"
           name="search"
-          placeholder="ユーザー名またはメールアドレスで検索"
+          placeholder="メールアドレスで検索"
           value="{{ search }}"
         />
         <div class="input-group-append">
@@ -31,7 +31,6 @@ content %}
         <thead>
           <tr>
             <th>ID</th>
-            <th>ユーザー名</th>
             <th>メールアドレス</th>
             <th>住所</th>
             <th>電話番号</th>
@@ -43,11 +42,12 @@ content %}
         <tbody>
                   {% for user in users %}
         <tr>
-          <td>{{ (page - 1) * 20 + loop.index }}</td>
-          <td>{{ user[2] }}</td>
-          <td>{{ user[4] }}</td>
+          <td>{{ user[0] }}</td>
+          <td>{{ user[1] or '-' }}</td>
+          <td>{{ user[2] or '-' }}</td>
+          <td>{{ user[3] or '-' }}</td>
+          <td>{% if user[4] %}はい{% else %}いいえ{% endif %}</td>
           <td>{{ user[5] or '-' }}</td>
-          <td>{{ user[6] or '-' }}</td>
           <td>{% if user[7] %}はい{% else %}いいえ{% endif %}</td>
           <td>{{ user[8] }}</td>
           <td>
