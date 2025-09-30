@@ -327,6 +327,8 @@ def admin_products():
             page = request.args.get('page', 1, type=int)
             per_page = 20
             
+            print(f"Products page request: page={page}, search={search}")  # デバッグ
+            
             if search:
                 products_raw = safe_database_query(
                     f"SELECT id, name, description, price, stock, category, image_url, created_at FROM products WHERE name LIKE '%{search}%' OR category LIKE '%{search}%' ORDER BY id ASC",
@@ -338,22 +340,27 @@ def admin_products():
                     fetch_all=True, default_value=[]
                 )
             
+            print(f"Products raw data: {len(products_raw) if products_raw else 0} products")  # デバッグ
+            
             # テンプレート互換性のため配列形式に変換
             all_products = []
-            for i, product in enumerate(products_raw or [], 1):
-                if isinstance(product, dict):
-                    product_array = [
-                        i,  # row_num
-                        product.get('id', 0),
-                        product.get('name', ''),
-                        product.get('description', ''),
-                        float(product.get('price', 0)) if product.get('price') is not None else 0.0,
-                        product.get('stock', 0),
-                        product.get('category', ''),
-                        product.get('image_url', ''),
-                        product.get('created_at', '')
-                    ]
-                    all_products.append(product_array)
+            if products_raw and isinstance(products_raw, list):
+                for i, product in enumerate(products_raw, 1):
+                    if isinstance(product, dict):
+                        product_array = [
+                            i,  # 0: row_num
+                            product.get('id', 0),               # 1: ID
+                            product.get('name', ''),            # 2: 名前
+                            product.get('description', ''),     # 3: 説明
+                            float(product.get('price', 0)) if product.get('price') is not None else 0.0,  # 4: 価格
+                            product.get('stock', 0),            # 5: 在庫
+                            product.get('category', ''),        # 6: カテゴリ
+                            product.get('image_url', ''),       # 7: 画像URL
+                            product.get('created_at', '')       # 8: 作成日
+                        ]
+                        all_products.append(product_array)
+            
+            print(f"Products processed: {len(all_products)} products")  # デバッグ
             
             # ページング計算
             total = len(all_products)
@@ -503,8 +510,13 @@ def admin_reviews():
     if user_id == '1':
         try:
             search = request.args.get('search', '')
-            page = int(request.args.get('page', '1'))  # 明示的にint変換
+            try:
+                page = int(request.args.get('page', '1'))
+            except (ValueError, TypeError):
+                page = 1
             per_page = 20
+            
+            print(f"Review page request: page={page}, search={search}")  # デバッグ
             
             if search:
                 reviews_raw = safe_database_query(f"""
