@@ -21,11 +21,15 @@ endblock %} {% block content %}
             alt="{{ product[1] }}"
           />
           <div class="card-body d-flex flex-column">
-            <h6 class="card-title">{{ product[1] }}</h6>
-            <p class="card-text text-muted small mb-3">{{ product[2] }}</p>
+            <h6 class="card-title">{{ product[1] if product|length > 1 else 'Unknown' }}</h6>
+            <p class="card-text text-muted small mb-3">{{ product[2] if product|length > 2 else '' }}</p>
             <div class="mt-auto">
               <p class="product-price mb-3">
-                ¥{{ "{:,}".format(product[3]|int) }}
+                {% if product|length > 3 and product[3] is not none %}
+                  ¥{{ "{:,}".format(product[3]|int) }}
+                {% else %}
+                  ¥0
+                {% endif %}
               </p>
               <a
                 href="/product/{{ product[0] }}"

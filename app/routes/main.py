@@ -186,6 +186,12 @@ def products():
         # 現在のページの商品を取得
         products = converted_products[offset:offset + per_page]
         
+        # デバッグ情報を追加
+        print(f"Debug - Products count: {len(products)}")
+        if products:
+            print(f"Debug - First product: {products[0]}")
+            print(f"Debug - Product type: {type(products[0])}")
+        
         return render_template('main/products.html', 
                              products=products, 
                              category=category,

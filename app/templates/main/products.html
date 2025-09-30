@@ -64,11 +64,17 @@ endblock %} {% block content %}
             <p class="card-text text-muted small mb-3">{{ product[2] }}</p>
             <div class="mt-auto">
               <p class="product-price mb-2">
-                ¥{{ "{:,}".format(product[3]|int) }}
+                {% if product|length > 3 and product[3] is not none %}
+                  ¥{{ "{:,}".format(product[3]|int) }}
+                {% else %}
+                  ¥0
+                {% endif %}
               </p>
-              <p class="text-muted small mb-3">在庫: {{ product[4] }}個</p>
+              <p class="text-muted small mb-3">
+                在庫: {% if product|length > 4 %}{{ product[4] }}{% else %}0{% endif %}個
+              </p>
               <a
-                href="/product/{{ product[0] }}"
+                href="/product/{{ product[0] if product|length > 0 else '#' }}"
                 class="btn btn-outline-primary btn-sm w-100"
                 >詳細を見る</a
               >
