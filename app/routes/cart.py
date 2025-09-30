@@ -82,7 +82,7 @@ def add_to_cart():
     
     return redirect(f'/product/{product_id}')
 
-@bp.route('/cart/remove/<int:cart_id>')
+@bp.route('/cart/remove/<int:cart_id>', methods=['GET', 'POST'])
 def remove_from_cart(cart_id):
     """カートから商品削除"""
     if 'user_id' not in session:

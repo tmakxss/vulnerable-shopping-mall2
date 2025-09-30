@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, session, redirect, flash
-import sqlite3
+from app.utils import safe_database_query
 
 bp = Blueprint('order', __name__)
 
@@ -22,60 +22,66 @@ def checkout():
             flash('配送先住所と支払い方法を入力してください', 'error')
             return redirect('/checkout')
         
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        # 注文作成
-        cursor.execute("""
-            INSERT INTO orders (user_id, shipping_address, payment_method, total_amount, status, created_at) 
-            VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
-        """, (user_id, shipping_address, payment_method, total_amount))
-        
-        order_id = cursor.lastrowid
-        
-        # カートアイテムを注文アイテムに移動
-        cursor.execute("SELECT product_id, quantity FROM cart WHERE user_id = ?", (user_id,))
-        cart_items = cursor.fetchall()
-        
-        for item in cart_items:
-            # 商品価格取得
-            cursor.execute("SELECT price FROM products WHERE id = ?", (item[0],))
-            price = cursor.fetchone()[0]
+        try:
+            # 注文作成
+            order_data = safe_database_query("""
+                INSERT INTO orders (user_id, shipping_address, total_amount, status, created_at) 
+                VALUES (%s, %s, %s, 'pending', CURRENT_TIMESTAMP) RETURNING id
+            """, (user_id, shipping_address, total_amount))
             
-            cursor.execute("""
-                INSERT INTO order_items (order_id, product_id, quantity, price) 
-                VALUES (?, ?, ?, ?)
-            """, (order_id, item[0], item[1], price))
-        
-        # カートを空にする
-        cursor.execute("DELETE FROM cart WHERE user_id = ?", (user_id,))
-        conn.commit()
-        conn.close()
-        
-        flash('注文が完了しました', 'success')
-        return redirect(f'/order/{order_id}')
+            order_id = order_data[0][0] if order_data else None
+            
+            # カートアイテムを注文アイテムに移動
+            cart_items = safe_database_query(
+                "SELECT product_id, quantity FROM cart WHERE user_id = %s", 
+                (user_id,)
+            )
+            
+            for item in cart_items:
+                # 商品価格取得
+                price_data = safe_database_query(
+                    "SELECT price FROM products WHERE id = %s", 
+                    (item[0],)
+                )
+                price = price_data[0][0] if price_data else 0
+                
+                safe_database_query("""
+                    INSERT INTO order_items (order_id, product_id, quantity, price) 
+                    VALUES (%s, %s, %s, %s)
+                """, (order_id, item[0], item[1], price))
+            
+            # カートを空にする
+            safe_database_query("DELETE FROM cart WHERE user_id = %s", (user_id,))
+            
+            flash('注文が完了しました', 'success')
+            return redirect(f'/order/{order_id}')
+            
+        except Exception as e:
+            flash(f'注文処理中にエラーが発生しました: {str(e)}', 'error')
+            return redirect('/checkout')
     
     # カート情報表示
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
     
-    cursor.execute("""
-        SELECT p.name, p.price, c.quantity, (p.price * c.quantity) as total
-        FROM cart c 
-        JOIN products p ON c.product_id = p.id 
-        WHERE c.user_id = ?
-    """, (user_id,))
-    
-    cart_items = cursor.fetchall()
-    total = sum(item[3] for item in cart_items)
-    conn.close()
-    
-    if not cart_items:
-        flash('カートが空です', 'error')
+    try:
+        cart_items = safe_database_query("""
+            SELECT p.name, p.price, c.quantity, (p.price * c.quantity) as total
+            FROM cart c 
+            JOIN products p ON c.product_id = p.id 
+            WHERE c.user_id = %s
+        """, (user_id,))
+        
+        total = sum(float(item[3]) for item in cart_items) if cart_items else 0
+        
+        if not cart_items:
+            flash('カートが空です', 'error')
+            return redirect('/cart')
+        
+        return render_template('order/checkout.html', cart_items=cart_items, total=total)
+        
+    except Exception as e:
+        flash(f'カート情報の取得中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/cart')
-    
-    return render_template('order/checkout.html', cart_items=cart_items, total=total)
 
 @bp.route('/order/<int:order_id>')
 def order_detail(order_id):
@@ -85,24 +91,32 @@ def order_detail(order_id):
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
     
-    # SQLインジェクション脆弱性 - 注文照会
-    cursor.execute(f"SELECT * FROM orders WHERE id = {order_id} AND user_id = {user_id}")
-    order = cursor.fetchone()
-    
-    if not order:
-        conn.close()
-        flash('注文が見つかりません', 'error')
+    try:
+        # SQLインジェクション脆弱性を維持 - 直接文字列挿入
+        query = f"SELECT * FROM orders WHERE id = {order_id} AND user_id = {user_id}"
+        order_data = safe_database_query(query)
+        
+        if not order_data:
+            flash('注文が見つかりません', 'error')
+            return redirect('/orders')
+        
+        order = order_data[0]
+        
+        # 注文アイテム照会
+        items_query = f"""
+            SELECT oi.*, p.name, p.price 
+            FROM order_items oi 
+            JOIN products p ON oi.product_id = p.id 
+            WHERE oi.order_id = {order_id}
+        """
+        items = safe_database_query(items_query)
+        
+        return render_template('order/detail.html', order=order, items=items)
+        
+    except Exception as e:
+        flash(f'注文詳細の取得中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/orders')
-    
-    # 注文アイテム照会
-    cursor.execute(f"SELECT oi.*, p.name, p.price FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = {order_id}")
-    items = cursor.fetchall()
-    conn.close()
-    
-    return render_template('order/detail.html', order=order, items=items)
 
 @bp.route('/orders')
 def my_orders():
@@ -112,38 +126,52 @@ def my_orders():
         return redirect('/login')
     
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
     
-    # SQLインジェクション脆弱性
-    cursor.execute(f"SELECT * FROM orders WHERE user_id = {user_id} ORDER BY id ASC")
-    orders = cursor.fetchall()
-    conn.close()
-    
-    return render_template('order/list.html', orders=orders)
+    try:
+        # SQLインジェクション脆弱性を維持
+        query = f"SELECT * FROM orders WHERE user_id = {user_id} ORDER BY id ASC"
+        orders = safe_database_query(query)
+        
+        return render_template('order/list.html', orders=orders)
+        
+    except Exception as e:
+        flash(f'注文履歴の取得中にエラーが発生しました: {str(e)}', 'error')
+        return redirect('/')
 
 @bp.route('/order/cancel/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
-    """주문 취소"""
+    """注文キャンセル"""
     if 'user_id' not in session:
         flash('ログインが必要です', 'error')
         return redirect('/login')
+    
     user_id = session['user_id']
-    conn = sqlite3.connect('database/shop.db')
-    cursor = conn.cursor()
-    # 본인 주문만 취소 가능
-    cursor.execute("SELECT status FROM orders WHERE id = ? AND user_id = ?", (order_id, user_id))
-    order = cursor.fetchone()
-    if not order:
-        conn.close()
-        flash('注文が見つかりません', 'error')
+    
+    try:
+        # 本人注文のみキャンセル可能
+        order_data = safe_database_query(
+            "SELECT status FROM orders WHERE id = %s AND user_id = %s", 
+            (order_id, user_id)
+        )
+        
+        if not order_data:
+            flash('注文が見つかりません', 'error')
+            return redirect('/orders')
+        
+        order_status = order_data[0][0]
+        
+        if order_status != 'pending':
+            flash('すでに処理された注文はキャンセルできません', 'error')
+            return redirect('/orders')
+        
+        safe_database_query(
+            "UPDATE orders SET status = 'cancelled' WHERE id = %s", 
+            (order_id,)
+        )
+        
+        flash('ご注文がキャンセルされました', 'success')
         return redirect('/orders')
-    if order[0] != 'pending':
-        conn.close()
-        flash('すでに処理された注文はキャンセルできません', 'error')
-        return redirect('/orders')
-    cursor.execute("UPDATE orders SET status = 'cancelled' WHERE id = ?", (order_id,))
-    conn.commit()
-    conn.close()
-    flash('ご注文がキャンセルされました', 'success')
-    return redirect('/orders') 
+        
+    except Exception as e:
+        flash(f'注文キャンセル中にエラーが発生しました: {str(e)}', 'error')
+        return redirect('/orders') 
