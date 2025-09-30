@@ -153,23 +153,38 @@ def products():
         if category:
             # SQLインジェクション脆弱性（意図的）
             all_products = safe_database_query(
-                f"SELECT * FROM products WHERE category = '{category}'",
+                f"SELECT id, name, description, price, stock, category, image_url FROM products WHERE category = '{category}'",
                 fetch_all=True,
                 default_value=[]
             )
         else:
             all_products = safe_database_query(
-                "SELECT * FROM products",
+                "SELECT id, name, description, price, stock, category, image_url FROM products",
                 fetch_all=True,
                 default_value=[]
             )
         
+        # 商品データを配列形式に変換（テンプレート互換性のため）
+        converted_products = []
+        for product in all_products:
+            if isinstance(product, dict):
+                product_array = [
+                    product.get('id', 0),
+                    product.get('name', ''),
+                    product.get('description', ''),
+                    float(product.get('price', 0)) if product.get('price') is not None else 0.0,
+                    product.get('stock', 0),
+                    product.get('category', ''),
+                    product.get('image_url') or '/static/test.jpeg'
+                ]
+                converted_products.append(product_array)
+        
         # ページング処理
-        total_products = len(all_products)
+        total_products = len(converted_products)
         total_pages = (total_products + per_page - 1) // per_page if total_products > 0 else 1
         
         # 現在のページの商品を取得
-        products = all_products[offset:offset + per_page]
+        products = converted_products[offset:offset + per_page]
         
         return render_template('main/products.html', 
                              products=products, 
@@ -180,7 +195,12 @@ def products():
                              
     except Exception as e:
         flash(f'商品の取得中にエラーが発生しました: {str(e)}', 'danger')
-        return render_template('main/products.html', products=[], category=category)
+        return render_template('main/products.html', 
+                             products=[], 
+                             category=category,
+                             current_page=1,
+                             total_pages=1,
+                             total_products=0)
 
 @bp.route('/search')
 def search():
@@ -193,15 +213,30 @@ def search():
     if query:
         try:
             # SQLインジェクション脆弱性（意図的）
-            sql_query = f"SELECT * FROM products WHERE name LIKE '%{query}%' OR description LIKE '%{query}%'"
+            sql_query = f"SELECT id, name, description, price, stock, category, image_url FROM products WHERE name LIKE '%{query}%' OR description LIKE '%{query}%'"
             all_results = safe_database_query(sql_query, fetch_all=True, default_value=[])
             
+            # 検索結果を配列形式に変換（テンプレート互換性のため）
+            converted_results = []
+            for product in all_results:
+                if isinstance(product, dict):
+                    product_array = [
+                        product.get('id', 0),
+                        product.get('name', ''),
+                        product.get('description', ''),
+                        float(product.get('price', 0)) if product.get('price') is not None else 0.0,
+                        product.get('stock', 0),
+                        product.get('category', ''),
+                        product.get('image_url') or '/static/test.jpeg'
+                    ]
+                    converted_results.append(product_array)
+            
             # ページング処理
-            total_results = len(all_results)
+            total_results = len(converted_results)
             total_pages = (total_results + per_page - 1) // per_page if total_results > 0 else 1
             
             # 現在のページの結果を取得
-            results = all_results[offset:offset + per_page]
+            results = converted_results[offset:offset + per_page]
             
             return render_template('main/search.html', 
                                  results=results, 
@@ -212,7 +247,12 @@ def search():
                                  
         except Exception as e:
             flash(f'検索中にエラーが発生しました: {str(e)}', 'danger')
-            return render_template('main/search.html', results=[], query=query)
+            return render_template('main/search.html', 
+                                 results=[], 
+                                 query=query,
+                                 current_page=1,
+                                 total_pages=1,
+                                 total_results=0)
     
     return render_template('main/search.html')
 
