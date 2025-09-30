@@ -52,38 +52,44 @@ def admin_dashboard():
 @bp.route('/admin/users')
 def admin_users():
     """ユーザー管理"""
-    is_admin = request.cookies.get('is_admin', '0')
+    is_admin = request.cookies.get('is_admin', 'false')
     
-    if int(is_admin) > 0:
-        conn = sqlite3.connect('database/shop.db')
-        cursor = conn.cursor()
-        
-        search = request.args.get('search', '')
-        page = request.args.get('page', 1, type=int)
-        per_page = 20
-        
-        if search:
-            cursor.execute(f"SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%'")
-        else:
-            cursor.execute("SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users ORDER BY created_at ASC")
-        
-        all_users = cursor.fetchall()
-        
-        # ページング計算
-        total = len(all_users)
-        total_pages = (total + per_page - 1) // per_page
-        start_idx = (page - 1) * per_page
-        end_idx = start_idx + per_page
-        users = all_users[start_idx:end_idx]
-        
-        conn.close()
-        
-        return render_template('admin/users.html', 
-                             users=users, 
-                             search=search, 
-                             page=page, 
-                             total_pages=total_pages,
-                             total=total)
+    # PostgreSQL BOOLEAN型対応
+    admin_check = is_admin.lower() in ['true', '1', 'yes']
+    
+    if admin_check:
+        try:
+            search = request.args.get('search', '')
+            page = request.args.get('page', 1, type=int)
+            per_page = 20
+            
+            if search:
+                # SQLインジェクション脆弱性を保持しつつPostgreSQL対応
+                all_users = safe_database_query(
+                    f"SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users WHERE username LIKE '%{search}%' OR email LIKE '%{search}%'",
+                    fetch_all=True, default_value=[]
+                )
+            else:
+                all_users = safe_database_query(
+                    "SELECT ROW_NUMBER() OVER (ORDER BY created_at ASC) as row_num, * FROM users ORDER BY created_at ASC",
+                    fetch_all=True, default_value=[]
+                )
+            
+            # ページング計算
+            total = len(all_users)
+            total_pages = (total + per_page - 1) // per_page if total > 0 else 1
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            users = all_users[start_idx:end_idx]
+            
+            return render_template('admin/users.html', 
+                                 users=users, 
+                                 search=search, 
+                                 page=page, 
+                                 total_pages=total_pages,
+                                 total=total)
+        except Exception as e:
+            return f"ユーザー管理画面のロード中にエラーが発生しました: {str(e)}"
     
     return "管理者権限が必要です"
 
