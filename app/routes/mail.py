@@ -153,6 +153,18 @@ def sent_mail():
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
         return render_template('mail/sent.html', emails=[])
 
+def sanitize_mailid(mailid):
+    """mailidのサニタイズ処理 - ><をエスケープ"""
+    if not mailid:
+        return ''
+    
+    # 基本的な危険文字をエスケープ
+    sanitized = str(mailid)
+    sanitized = sanitized.replace('<', '&lt;')
+    sanitized = sanitized.replace('>', '&gt;')
+    
+    return sanitized
+
 @bp.route('/mail/read')
 def read_mail():
     """メール読み取り - mailidパラメーター使用"""
@@ -190,7 +202,7 @@ def read_mail():
         return render_template('mail/inbox.html', 
                              emails=emails_data, 
                              error_alert=True,
-                             error_mailid=mailid,  # XSS脆弱性用
+                             error_mailid=sanitize_mailid(mailid),  # サニタイズ適用
                              error_message="無効なメールIDです")
     
     try:
@@ -231,7 +243,7 @@ def read_mail():
             return render_template('mail/inbox.html', 
                                  emails=emails_data, 
                                  error_alert=True,
-                                 error_mailid=mailid,  # XSS脆弱性用
+                                 error_mailid=sanitize_mailid(mailid),  # サニタイズ適用
                                  error_message=f"メールID「{mailid}」は存在しません")
         
         # 受信メールの場合、既読フラグを更新
@@ -282,7 +294,7 @@ def read_mail():
         return render_template('mail/inbox.html', 
                              emails=emails_data, 
                              error_alert=True,
-                             error_mailid=mailid,  # XSS脆弱性用
+                             error_mailid=sanitize_mailid(mailid),  # サニタイズ適用
                              error_message=f"エラーが発生しました: {str(e)}")
 
 @bp.route('/mail/download')
