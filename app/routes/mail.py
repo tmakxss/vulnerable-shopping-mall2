@@ -153,13 +153,51 @@ def sent_mail():
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
         return render_template('mail/sent.html', emails=[])
 
-@bp.route('/mail/read/<int:email_id>')
-def read_mail(email_id):
-    """メール読み取り"""
+def sanitize_input(input_str):
+    """XSSフィルタリング - ><を含む危険な文字をサニタイズ（脆弱性あり）"""
+    if not input_str:
+        return ''
+    
+    # 文字列に変換
+    sanitized = str(input_str)
+    
+    # 基本的な危険文字をエスケープ
+    dangerous_chars = {
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        '&': '&amp;',
+        '/': '&#x2F;'
+    }
+    
+    for char, replacement in dangerous_chars.items():
+        sanitized = sanitized.replace(char, replacement)
+    
+    # 脆弱性: 数字で始まる場合、シングルクォートをエスケープしない
+    if sanitized and sanitized[0].isdigit():
+        # 数字で始まる場合はシングルクォートを通す（メールID想定）
+        pass
+    else:
+        # それ以外はシングルクォートもエスケープ
+        sanitized = sanitized.replace("'", '&#x27;')
+    
+    return sanitized
+
+@bp.route('/mail/read')
+def read_mail():
+    """メール読み取り - mailidパラメーター使用"""
     if 'user_id' not in session:
         return redirect('/login')
     
     user_id = session['user_id']
+    mailid = request.args.get('mailid', '')
+    
+    # mailidの検証
+    try:
+        email_id = int(mailid)
+    except (ValueError, TypeError):
+        flash('無効なメールIDです', 'error')
+        return redirect('/mail/inbox')
     
     try:
         # メール情報を取得
@@ -199,19 +237,33 @@ def read_mail(email_id):
             email_data.get('recipient_name', ''),       # [9] - 受信者名
         ]
         
-        return render_template('mail/read.html', email=email_array)
+        # XSSフィルタリング適用
+        filtered_mailid = sanitize_input(mailid)
+        
+        return render_template('mail/read.html', 
+                             email=email_array, 
+                             mailid=mailid,  # 未フィルタ版（脆弱性用）
+                             filtered_mailid=filtered_mailid)  # フィルタ済み版
         
     except Exception as e:
         flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
         return redirect('/mail/inbox')
 
-@bp.route('/mail/download/<int:email_id>')
-def download_attachment(email_id):
+@bp.route('/mail/download')
+def download_attachment():
     """添付ファイルダウンロード (Directory Traversal脆弱性)"""
     if 'user_id' not in session:
         return redirect('/login')
     
     user_id = session['user_id']
+    mailid = request.args.get('mailid', '')
+    
+    # mailid の検証
+    try:
+        email_id = int(mailid)
+    except (ValueError, TypeError):
+        flash('無効なメールIDです', 'error')
+        return redirect('/mail/inbox')
     
     try:
         # メール情報を取得

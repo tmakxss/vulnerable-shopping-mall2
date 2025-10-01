@@ -30,7 +30,7 @@
                   <td>{{ email[7] }}</td>
                   <td>
                     <a
-                      href="/mail/read/{{ email[0] }}"
+                      href="/mail/read?mailid={{ email[0] }}"
                       class="text-decoration-none"
                     >
                       {{ email[3] }} {% if email[8] > 0 %} 📎 {% endif %}
@@ -51,7 +51,7 @@
                   </td>
                   <td>
                     <a
-                      href="/mail/read/{{ email[0] }}"
+                      href="/mail/read?mailid={{ email[0] }}"
                       class="btn btn-sm btn-outline-primary"
                       >👁️ 詳細</a
                     >

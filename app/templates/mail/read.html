@@ -13,6 +13,24 @@
         <div class="card-body">
           <div class="mb-4">{{ email[4]|safe }}</div>
 
+          <!-- XSS脆弱性: mailidがイベントハンドラー内に反射 -->
+          <div class="alert alert-info">
+            <strong>📧 メール操作:</strong>
+            <button 
+              class="btn btn-sm btn-secondary ms-2" 
+              onclick="handleMailAction('{{ mailid|safe }}'); return false;"
+              title="メールID: {{ filtered_mailid }}"
+            >
+              🔄 更新
+            </button>
+            <button 
+              class="btn btn-sm btn-danger ms-2" 
+              onclick="confirmDelete('{{ mailid|safe }}'); return false;"
+            >
+              🗑️ 削除
+            </button>
+          </div>
+
           {% if attachments %}
           <hr />
           <h5>📎 添付ファイル</h5>
@@ -48,4 +66,20 @@
     </div>
   </div>
 </div>
+
+<script>
+function handleMailAction(mailId) {
+    // 脆弱性: mailidがJavaScript内に反射される
+    console.log('Mail action for ID: ' + mailId);
+    alert('メール操作が実行されました (ID: ' + mailId + ')');
+}
+
+function confirmDelete(mailId) {
+    // 脆弱性: mailidがJavaScript内に反射される
+    if (confirm('メールID ' + mailId + ' を削除しますか？')) {
+        console.log('Deleting mail ID: ' + mailId);
+        alert('削除機能は実装されていません (ID: ' + mailId + ')');
+    }
+}
+</script>
 {% endblock %}
