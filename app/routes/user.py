@@ -77,7 +77,7 @@ def edit_profile():
                 param_key = key[8:-1]  # address[key] から key を抽出
                 
                 # 基本的なフィルタ（>< を阻止、"は許可）
-                if '>' in value or '<' in value:
+                if '>' in param_key or '<' in param_key or '>' in value or '<' in value:
                     flash('不正な文字が検出されました', 'error')
                     continue
                     
