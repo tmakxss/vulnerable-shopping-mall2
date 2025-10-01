@@ -31,9 +31,16 @@
                     <a
                       href="/mail/read/{{ email[0] }}"
                       class="text-decoration-none"
+                      onclick="previewEmail('{{ email[3] | safe }}'); return false;"
+                      title="クリックで詳細プレビュー"
                     >
                       {{ email[3] }} {% if email[8] > 0 %} 📎 {% endif %}
                     </a>
+                    <small class="d-block text-muted">
+                      <a href="/mail/read/{{ email[0] }}" class="text-decoration-none">
+                        📖 詳細を開く
+                      </a>
+                    </small>
                   </td>
                   <td>
                     {% if email[8] > 0 %}
@@ -65,4 +72,30 @@
     </div>
   </div>
 </div>
+
+<script>
+// メールプレビュー機能（XSS脆弱性あり）
+function previewEmail(subject) {
+    // プレビューダイアログを表示
+    if (subject && subject.trim()) {
+        // 脆弱性：件名をそのまま実行可能なコードとして処理
+        var previewMsg = "件名: " + subject + "\\nクリックして詳細を確認しますか？";
+        
+        // さらなる脆弱性：eval使用
+        try {
+            eval('var displaySubject = "' + subject + '";');
+            console.log('プレビュー対象: ' + displaySubject);
+        } catch(e) {
+            console.log('プレビューエラー: ' + e.message);
+        }
+        
+        // プレビュー表示
+        if (confirm(previewMsg)) {
+            // 通常はメール詳細ページに遷移
+            return true;
+        }
+    }
+    return false;
+}
+</script>
 {% endblock %}
