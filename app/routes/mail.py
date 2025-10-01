@@ -153,36 +153,6 @@ def sent_mail():
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
         return render_template('mail/sent.html', emails=[])
 
-def sanitize_input(input_str):
-    """XSSフィルタリング - ><を含む危険な文字をサニタイズ（脆弱性あり）"""
-    if not input_str:
-        return ''
-    
-    # 文字列に変換
-    sanitized = str(input_str)
-    
-    # 基本的な危険文字をエスケープ
-    dangerous_chars = {
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        '&': '&amp;',
-        '/': '&#x2F;'
-    }
-    
-    for char, replacement in dangerous_chars.items():
-        sanitized = sanitized.replace(char, replacement)
-    
-    # 脆弱性: 数字で始まる場合、シングルクォートをエスケープしない
-    if sanitized and sanitized[0].isdigit():
-        # 数字で始まる場合はシングルクォートを通す（メールID想定）
-        pass
-    else:
-        # それ以外はシングルクォートもエスケープ
-        sanitized = sanitized.replace("'", '&#x27;')
-    
-    return sanitized
-
 @bp.route('/mail/read')
 def read_mail():
     """メール読み取り - mailidパラメーター使用"""
@@ -196,8 +166,32 @@ def read_mail():
     try:
         email_id = int(mailid)
     except (ValueError, TypeError):
-        flash('無効なメールIDです', 'error')
-        return redirect('/mail/inbox')
+        # 無効なmailidの場合、受信メールボックスにエラーテロップ付きで表示
+        emails_raw = safe_database_query("""
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+            FROM emails e 
+            JOIN users u ON e.sender_id = u.id 
+            WHERE e.recipient_id = %s 
+            ORDER BY e.created_at DESC
+        """, (user_id,), fetch_all=True, default_value=[])
+        
+        emails_data = []
+        for email in emails_raw or []:
+            if isinstance(email, dict):
+                email_array = [
+                    email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                    email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                    email.get('created_at', ''), email.get('sender_name', ''),
+                    1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                ]
+                emails_data.append(email_array)
+        
+        return render_template('mail/inbox.html', 
+                             emails=emails_data, 
+                             error_alert=True,
+                             error_mailid=mailid,  # XSS脆弱性用
+                             error_message="無効なメールIDです")
     
     try:
         # メール情報を取得
@@ -213,8 +207,32 @@ def read_mail():
         """, (email_id, user_id, user_id), fetch_one=True)
         
         if not email_data:
-            flash('メールが見つかりません', 'error')
-            return redirect('/mail/inbox')
+            # 存在しないmailidの場合、受信メールボックスにエラーテロップ付きで表示
+            emails_raw = safe_database_query("""
+                SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                       e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+                FROM emails e 
+                JOIN users u ON e.sender_id = u.id 
+                WHERE e.recipient_id = %s 
+                ORDER BY e.created_at DESC
+            """, (user_id,), fetch_all=True, default_value=[])
+            
+            emails_data = []
+            for email in emails_raw or []:
+                if isinstance(email, dict):
+                    email_array = [
+                        email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                        email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                        email.get('created_at', ''), email.get('sender_name', ''),
+                        1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                    ]
+                    emails_data.append(email_array)
+            
+            return render_template('mail/inbox.html', 
+                                 emails=emails_data, 
+                                 error_alert=True,
+                                 error_mailid=mailid,  # XSS脆弱性用
+                                 error_message=f"メールID「{mailid}」は存在しません")
         
         # 受信メールの場合、既読フラグを更新
         if email_data.get('recipient_id') == user_id and not email_data.get('is_read'):
@@ -237,17 +255,35 @@ def read_mail():
             email_data.get('recipient_name', ''),       # [9] - 受信者名
         ]
         
-        # XSSフィルタリング適用
-        filtered_mailid = sanitize_input(mailid)
-        
-        return render_template('mail/read.html', 
-                             email=email_array, 
-                             mailid=mailid,  # 未フィルタ版（脆弱性用）
-                             filtered_mailid=filtered_mailid)  # フィルタ済み版
+        return render_template('mail/read.html', email=email_array)
         
     except Exception as e:
-        flash(f'メールの読み込み中にエラーが発生しました: {str(e)}', 'error')
-        return redirect('/mail/inbox')
+        # データベースエラーの場合も受信メールボックスにエラーテロップ付きで表示
+        emails_raw = safe_database_query("""
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+            FROM emails e 
+            JOIN users u ON e.sender_id = u.id 
+            WHERE e.recipient_id = %s 
+            ORDER BY e.created_at DESC
+        """, (user_id,), fetch_all=True, default_value=[])
+        
+        emails_data = []
+        for email in emails_raw or []:
+            if isinstance(email, dict):
+                email_array = [
+                    email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                    email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                    email.get('created_at', ''), email.get('sender_name', ''),
+                    1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                ]
+                emails_data.append(email_array)
+        
+        return render_template('mail/inbox.html', 
+                             emails=emails_data, 
+                             error_alert=True,
+                             error_mailid=mailid,  # XSS脆弱性用
+                             error_message=f"エラーが発生しました: {str(e)}")
 
 @bp.route('/mail/download')
 def download_attachment():

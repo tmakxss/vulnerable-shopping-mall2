@@ -1,6 +1,20 @@
 {% extends "base.html" %} {% block title %}受信メールボックス -
 脆弱なショッピングモール{% endblock %} {% block content %}
 <div class="container mt-4">
+  
+  <!-- エラーテロップ（アラート） -->
+  {% if error_alert %}
+  <div class="alert alert-danger alert-dismissible fade show" role="alert" id="errorAlert">
+    <strong>❌ エラー:</strong> {{ error_message }}
+    <button 
+      type="button" 
+      class="btn-close" 
+      aria-label="Close"
+      onclick="closeErrorAlert('{{ error_mailid|safe }}'); return false;"
+    ></button>
+  </div>
+  {% endif %}
+  
   <div class="row">
     <div class="col-md-12">
       <div class="card">
@@ -73,4 +87,20 @@
     </div>
   </div>
 </div>
+
+<script>
+function closeErrorAlert(mailId) {
+    // 脆弱性: mailidがJavaScript内に反射される
+    console.log('Closing error alert for mail ID: ' + mailId);
+    
+    // エラーアラートを閉じる処理
+    const alertElement = document.getElementById('errorAlert');
+    if (alertElement) {
+        alertElement.style.display = 'none';
+    }
+    
+    // ページを更新（エラー状態をクリア）
+    window.location.href = '/mail/inbox';
+}
+</script>
 {% endblock %}
