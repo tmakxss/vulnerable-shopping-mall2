@@ -704,9 +704,26 @@ def admin_system():
         target = request.args.get('target', '')
         if target:
             try:
-                # 脆弱性: コマンドインジェクション
-                result = subprocess.check_output(f'ping -c 4 {target}', shell=True, text=True, timeout=10)
+                # OS判定してコマンド変更
+                import platform
+                os_type = platform.system().lower()
+                
+                if os_type == 'windows':
+                    # Windows用コマンド
+                    cmd = f'ping -n 4 {target}'
+                else:
+                    # Linux/macOS用コマンド
+                    cmd = f'ping -c 4 {target}'
+                
+                # 脆弱性: コマンドインジェクション（意図的）
+                # 危険: ユーザー入力を直接shell実行している
+                print(f"[VULN] Executing command: {cmd}")  # デバッグ用
+                result = subprocess.check_output(cmd, shell=True, text=True, timeout=15)
                 ping_result = result
+            except subprocess.CalledProcessError as e:
+                ping_result = f"Ping command failed (exit code {e.returncode}):\n{e.output if e.output else 'No output'}"
+            except subprocess.TimeoutExpired:
+                ping_result = f"Ping timeout: Command took longer than 10 seconds"
             except Exception as e:
                 ping_result = f"Ping failed: {str(e)}"
         

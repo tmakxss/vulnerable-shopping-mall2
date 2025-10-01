@@ -60,7 +60,7 @@ def product_detail(product_id):
 
 @bp.route('/product/<int:product_id>/review', methods=['POST'])
 def add_review(product_id):
-    """レビュー投稿"""
+    """レビュー投稿（文字チェック機能付き）"""
     if 'user_id' not in session:
         flash('ログインが必要です', 'error')
         return redirect('/login')
@@ -73,8 +73,29 @@ def add_review(product_id):
         flash('評価とコメントを入力してください', 'error')
         return redirect(f'/product/{product_id}')
     
+    # XSS対策: 危険な文字列をチェック
+    blocked_keywords = [
+        'alert', 'script', 'prompt', 'confirm', 
+        'console.log', '"', 'javascript:', 'eval',
+        'document.', 'window.', 'on', '\\u',
+        '<script', '</script>'
+    ]
+    
+    comment_lower = comment.lower()
+    
+    # キーワードチェック
+    for keyword in blocked_keywords:
+        if keyword in comment_lower:
+            flash('不適切な内容が検出されました。レビューの投稿をブロックしました。', 'error')
+            return redirect(f'/product/{product_id}')
+    
+    # 'on' 連続チェック（イベントハンドラ対策）
+    if 'on' in comment_lower:
+        flash('不適切な内容が検出されました。レビューの投稿をブロックしました。', 'error')
+        return redirect(f'/product/{product_id}')
+    
     try:
-        # XSS脆弱性 - コメント内容をフィルタリングせずに保存
+        # コメント内容を保存（文字チェック済み）
         safe_database_query(
             "INSERT INTO reviews (product_id, user_id, rating, comment) VALUES (?, ?, ?, ?)", 
             (product_id, user_id, rating, comment)

@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}XSS脆弱性テスト - ショッピングモール{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">🔒 XSS脆弱性テストページ</h3>
+                    <small>このページは脆弱性テストのためのページです</small>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <strong>⚠️ 注意:</strong> このページは教育目的のXSS脆弱性のデモンストレーションです。
+                        実際のウェブサイトでは適切なサニタイズ処理を行ってください。
+                    </div>
+
+                    <!-- Reflected XSS テスト -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>1. Reflected XSS（反射型XSS）</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>検索機能を使用したReflected XSSの例:</p>
+                            <form method="GET" action="/search" class="mb-3">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="q" 
+                                           placeholder="例: <script>alert('XSS')</script>" 
+                                           value="">
+                                    <button class="btn btn-warning" type="submit">検索テスト</button>
+                                </div>
+                            </form>
+                            
+                            <h6>テスト用ペイロード例:</h6>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">
+                                    <code>&lt;script&gt;alert('Reflected XSS')&lt;/script&gt;</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                            onclick="document.querySelector('input[name=q]').value = this.previousElementSibling.textContent;">
+                                        使用
+                                    </button>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;img src=x onerror=alert('XSS')&gt;</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                            onclick="document.querySelector('input[name=q]').value = this.previousElementSibling.textContent;">
+                                        使用
+                                    </button>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;svg onload=alert('XSS')&gt;</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                            onclick="document.querySelector('input[name=q]').value = this.previousElementSibling.textContent;">
+                                        使用
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Stored XSS テスト -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>2. Stored XSS（格納型XSS）</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>商品レビュー機能を使用したStored XSSの例:</p>
+                            <div class="alert alert-info">
+                                <strong>手順:</strong>
+                                <ol>
+                                    <li>まず<a href="/login" target="_blank">ログイン</a>してください</li>
+                                    <li>任意の<a href="/products" target="_blank">商品ページ</a>にアクセス</li>
+                                    <li>レビューにXSSペイロードを含めて投稿</li>
+                                    <li>レビューが表示される際にスクリプトが実行される</li>
+                                </ol>
+                            </div>
+                            
+                            <h6>Stored XSS用ペイロード例:</h6>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">
+                                    <code>&lt;script&gt;alert('Stored XSS')&lt;/script&gt;</code>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;img src=x onerror=alert('Stored XSS')&gt;</code>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;svg onload=alert(document.cookie)&gt;</code>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;iframe src=javascript:alert('XSS')&gt;&lt;/iframe&gt;</code>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- DOM-based XSS テスト -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5>3. DOM-based XSS（DOM型XSS）</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>JavaScriptによる動的DOM操作でのXSS:</p>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">テスト入力:</label>
+                                <input type="text" id="domTestInput" class="form-control" 
+                                       placeholder="例: <img src=x onerror=alert('DOM XSS')>">
+                                <button class="btn btn-warning mt-2" onclick="testDOMXSS()">DOM XSSテスト</button>
+                            </div>
+                            
+                            <div class="alert alert-secondary">
+                                <strong>結果表示エリア:</strong>
+                                <div id="domResult" class="mt-2 p-2 border rounded bg-light"></div>
+                            </div>
+                            
+                            <h6>DOM XSS用ペイロード例:</h6>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item">
+                                    <code>&lt;img src=x onerror=alert('DOM XSS')&gt;</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                            onclick="document.getElementById('domTestInput').value = this.previousElementSibling.textContent;">
+                                        使用
+                                    </button>
+                                </li>
+                                <li class="list-group-item">
+                                    <code>&lt;svg onload=alert('DOM XSS')&gt;</code>
+                                    <button class="btn btn-sm btn-outline-primary ms-2" 
+                                            onclick="document.getElementById('domTestInput').value = this.previousElementSibling.textContent;">
+                                        使用
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- XSS防御方法 -->
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5>🛡️ XSS防御方法</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6>入力値検証</h6>
+                                    <ul>
+                                        <li>HTMLエンコード/エスケープ</li>
+                                        <li>入力値の検証とサニタイズ</li>
+                                        <li>ホワイトリスト方式での検証</li>
+                                    </ul>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6>セキュリティヘッダー</h6>
+                                    <ul>
+                                        <li>Content Security Policy (CSP)</li>
+                                        <li>X-XSS-Protection ヘッダー</li>
+                                        <li>HttpOnly Cookie の使用</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function testDOMXSS() {
+    const input = document.getElementById('domTestInput').value;
+    const resultDiv = document.getElementById('domResult');
+    
+    // DOM-based XSS脆弱性 - innerHTML を使用してHTMLを直接挿入
+    resultDiv.innerHTML = '入力された内容: ' + input;
+}
+
+// ページロード時にURLフラグメントからの値を取得（DOM XSSの一例）
+window.onload = function() {
+    const fragment = window.location.hash.substring(1);
+    if (fragment) {
+        const welcomeDiv = document.createElement('div');
+        welcomeDiv.className = 'alert alert-info mt-3';
+        welcomeDiv.innerHTML = 'URLフラグメントから取得: ' + decodeURIComponent(fragment);
+        document.body.appendChild(welcomeDiv);
+    }
+};
+</script>
+{% endblock %}

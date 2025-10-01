@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cart XSS Test</title>
+</head>
+<body>
+    <h1>Cart Add XSS Test</h1>
+    
+    <h2>テスト 1: ダブルクォート</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value='"test'>
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test "test</button>
+    </form>
+    
+    <h2>テスト 2: JavaScript Scheme</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value="javascript:alert(1)">
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test javascript:alert(1)</button>
+    </form>
+    
+    <h2>テスト 3: JavaScript with Cookie</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value="javascript:alert(document.cookie)">
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test javascript:alert(document.cookie)</button>
+    </form>
+    
+    <h2>テスト 4: Data URI</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value="data:text/html,<script>alert(1)</script>">
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test data URI</button>
+    </form>
+    
+    <h2>テスト 5: VBScript</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value="vbscript:msgbox('XSS')">
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test vbscript</button>
+    </form>
+
+    <h2>テスト 6: Event Handler Injection</h2>
+    <form method="POST" action="/cart/add">
+        <input type="hidden" name="product_id" value='test"onmouseover="alert(1)'>
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Test Event Handler</button>
+    </form>
+    
+    <h3>期待される動作:</h3>
+    <p>各ボタンをクリックすると、302リダイレクトが発生し、LocationヘッダーにXSSペイロードが含まれるはずです。</p>
+    
+    <p><strong>特に重要:</strong> <code>javascript:</code> schemeが含まれる場合、ブラウザによってはリダイレクト先でJavaScriptが実行される可能性があります。</p>
+</body>
+</html>

@@ -65,7 +65,7 @@ def index():
         # 人気商品を取得（安全バージョン）
         try:
             featured_products = safe_database_query(
-                "SELECT id, name, description, price, stock, category FROM products ORDER BY id DESC LIMIT 4",
+                "SELECT id, name, description, price, stock, category, image_url FROM products ORDER BY id DESC LIMIT 4",
                 fetch_all=True,
                 default_value=[]
             )
@@ -92,30 +92,51 @@ def index():
             print(f"Featured products error: {e}")
             featured_products = []
         
-        # レビュー検索機能（安全バージョン）
+        # レビュー検索機能（XSSフィルター付き）
         review_query = request.args.get('review_search', '')
         recent_reviews = []
         
         try:
             if review_query:
-                # レビュー検索 (SQLインジェクション対策済み、XSS脆弱性は残存)
-                recent_reviews_raw = safe_database_query("""
-                    SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
-                           u.username, p.name as product_name
-                    FROM reviews r 
-                    JOIN users u ON r.user_id = u.id 
-                    JOIN products p ON r.product_id = p.id 
-                    WHERE r.comment LIKE %s OR u.username LIKE %s OR p.name LIKE %s
-                    ORDER BY r.created_at DESC LIMIT 10
-                """, (f'%{review_query}%', f'%{review_query}%', f'%{review_query}%'),
-                fetch_all=True,
-                default_value=[]
-                )
+                # XSSフィルターチェック
+                review_search_blocked_keywords = [
+                    '>', ' ', '%26', '%23', '&', '#'
+                ]
+                
+                review_query_lower = review_query.lower()
+                blocked = False
+                detected_keyword = None
+                
+                for keyword in review_search_blocked_keywords:
+                    if keyword in review_query_lower:
+                        blocked = True
+                        detected_keyword = keyword
+                        break
+                
+                if blocked:
+                    # ブロックされた場合はエラーメッセージと空の結果を返し、クエリもクリア
+                    flash('不正な検索クエリが検出されました。検索をブロックしました。', 'danger')
+                    recent_reviews_raw = []
+                    review_query = ""  # 反射攻撃を防ぐためクエリをクリア
+                else:
+                    # レビュー検索 (SQLインジェクション対策済み、XSSフィルター付き)
+                    recent_reviews_raw = safe_database_query("""
+                        SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
+                               u.username, p.name as product_name, p.image_url
+                        FROM reviews r 
+                        JOIN users u ON r.user_id = u.id 
+                        JOIN products p ON r.product_id = p.id 
+                        WHERE r.comment LIKE %s OR u.username LIKE %s OR p.name LIKE %s
+                        ORDER BY r.created_at DESC LIMIT 10
+                    """, (f'%{review_query}%', f'%{review_query}%', f'%{review_query}%'),
+                    fetch_all=True,
+                    default_value=[]
+                    )
             else:
                 # 最新レビューを取得（安全バージョン）
                 recent_reviews_raw = safe_database_query("""
                     SELECT r.id, r.product_id, r.user_id, r.rating, r.comment, r.created_at,
-                           u.username, p.name as product_name
+                           u.username, p.name as product_name, p.image_url
                     FROM reviews r 
                     JOIN users u ON r.user_id = u.id 
                     JOIN products p ON r.product_id = p.id 
@@ -134,7 +155,8 @@ def index():
                         review.get('comment', ''),
                         review.get('created_at', ''),
                         review.get('username', ''),
-                        review.get('product_name', '')
+                        review.get('product_name', ''),
+                        review.get('image_url') or '/static/test.jpeg'  # 商品画像URL
                     ]
                     recent_reviews.append(review_array)
                 

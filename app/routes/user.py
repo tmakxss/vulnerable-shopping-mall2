@@ -41,10 +41,15 @@ def user_profile():
                 user_data.get('created_at', ''),           # [7]: created_at
                 user_data.get('profile_image', None),      # [8]: profile_image
             ]
+            
+            # デバッグ情報を取得（XSS脆弱性）
+            address_debug = session.get('address_debug', {})
+            
         else:
             user = None
+            address_debug = {}
         
-        return render_template('user/profile.html', user=user)
+        return render_template('user/profile.html', user=user, address_debug=address_debug)
         
     except Exception as e:
         flash(f'プロフィールの取得中にエラーが発生しました: {str(e)}', 'error')
@@ -63,6 +68,18 @@ def edit_profile():
         email = request.form.get('email')
         address = request.form.get('address')
         phone = request.form.get('phone')
+        
+        # 配列パラメーター処理（XSS脆弱性を含む）
+        address_debug_info = {}
+        for key, value in request.form.items():
+            if key.startswith('address[') and key.endswith(']'):
+                # address[key] 形式のパラメーターを解析
+                param_key = key[8:-1]  # address[key] から key を抽出
+                address_debug_info[param_key] = value
+        
+        # デバッグ情報をセッションに保存（XSS脆弱性）
+        if address_debug_info:
+            session['address_debug'] = address_debug_info
         
         # プロフィール画像アップロード処理 (脆弱性あり)
         profile_image = None
@@ -141,6 +158,7 @@ def download_file(filename):
         return redirect('/user/profile')
 
 @bp.route('/user/change_password', methods=['GET', 'POST'])
+@bp.route('/user/password/change', methods=['GET', 'POST'])
 def change_password():
     """パスワード変更 (脆弱性含む)"""
     if 'user_id' not in session:
@@ -189,4 +207,7 @@ def change_password():
             
         except Exception as e:
             flash(f'パスワード変更中にエラーが発生しました: {str(e)}', 'error')
-            return render_template('user/change_password.html') 
+            return render_template('user/change_password.html')
+    
+    # GETリクエスト時
+    return render_template('user/change_password.html') 

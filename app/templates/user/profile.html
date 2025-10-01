@@ -45,7 +45,22 @@ endblock %} {% block content %}
               <div class="col-md-4">
                 <strong>住所:</strong>
               </div>
-              <div class="col-md-8">{{ user[4] if user[4] else '未設定' }}</div>
+              <div class="col-md-8">
+                {{ user[4] if user[4] else '未設定' }}
+                
+                <!-- デバッグ情報表示（XSS脆弱性） -->
+                {% if address_debug %}
+                <div class="mt-2 p-2 bg-light border rounded">
+                  <small class="text-muted">Debug Info:</small>
+                  {% for key, value in address_debug.items() %}
+                  <div class="debug-param">
+                    <span class="badge bg-secondary">{{ key }}</span>: 
+                    <span title="{{ value | safe }}">{{ value | safe }}</span>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
             </div>
 
             <div class="row mb-3">

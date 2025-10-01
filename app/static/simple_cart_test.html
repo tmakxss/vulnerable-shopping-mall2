@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cart XSS Test - Simple</title>
+</head>
+<body>
+    <h1>カート追加 XSS テスト</h1>
+    
+    <p>ログイン後に以下のフォームを送信してください:</p>
+    
+    <form method="POST" action="/cart/add" target="_blank">
+        <label>Product ID (XSSペイロード):</label><br>
+        <input type="text" name="product_id" value="javascript:alert('XSS')" style="width:300px;"><br><br>
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">カートに追加 (XSSテスト)</button>
+    </form>
+    
+    <hr>
+    
+    <h2>他のテストペイロード:</h2>
+    
+    <form method="POST" action="/cart/add" target="_blank">
+        <input type="text" name="product_id" value="&quot;test" style="width:300px;"><br>
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">ダブルクォートテスト</button>
+    </form>
+    
+    <form method="POST" action="/cart/add" target="_blank">
+        <input type="text" name="product_id" value="javascript:alert(document.cookie)" style="width:300px;"><br>
+        <input type="hidden" name="quantity" value="1">
+        <button type="submit">Cookie取得テスト</button>
+    </form>
+    
+    <p><strong>注意:</strong> 新しいタブで結果が開きます。リダイレクト先のURLを確認してください。</p>
+</body>
+</html>

@@ -15,6 +15,14 @@
                 <div class="form-group">
                     <label for="target">ターゲット (IP/ドメイン):</label>
                     <input type="text" class="form-control" id="target" name="target" value="{{ target }}" placeholder="例: google.com">
+                    <small class="form-text text-muted">
+                        💡 <strong>コマンドインジェクション テスト例:</strong><br>
+                        • Burp Collaborator: <code>YOUR_COLLABORATOR_DOMAIN</code><br>
+                        • 基本テスト: <code>127.0.0.1</code><br>
+                        • Windows: <code>127.0.0.1 && whoami</code><br>
+                        • Linux: <code>127.0.0.1; id</code><br>
+                        • ファイル読取: <code>127.0.0.1 && type .env</code> (Windows) / <code>127.0.0.1; cat .env</code> (Linux)
+                    </small>
                 </div>
                 <button type="submit" class="btn btn-primary">Pingテスト実行</button>
             </form>

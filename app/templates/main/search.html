@@ -23,7 +23,7 @@ endblock %} {% block content %}
 
     {% if query %}
     <div class="alert alert-info">
-      <strong>検索結果:</strong> "{{ query }}" で検索しました {% if
+      <strong>検索結果:</strong> "{{ query|safe }}" で検索しました {% if
       total_results is defined %}
       <span class="badge bg-light text-dark ms-2">全{{ total_results }}件</span>
       {% endif %}

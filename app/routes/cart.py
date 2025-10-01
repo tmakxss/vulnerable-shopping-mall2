@@ -53,6 +53,14 @@ def add_to_cart():
     quantity = request.form.get('quantity', 1)
     user_id = session['user_id']
     
+    # 脆弱性: product_idが数値でない場合の特別処理
+    try:
+        # product_idが数値かチェック
+        int(product_id)
+    except (ValueError, TypeError):
+        # 数値でない場合は特別なエラー処理に進む
+        pass
+    
     try:
         # CSRFトークン検証なし - 脆弱性
         # 既存のカートアイテム確認
@@ -79,6 +87,36 @@ def add_to_cart():
         
     except Exception as e:
         flash(f'カートへの追加中にエラーが発生しました: {str(e)}', 'error')
+    
+    # 脆弱性: product_idの値に基づいた特別な処理
+    if product_id and isinstance(product_id, str):
+        # "/product" で始まる場合の特別処理（XSS脆弱性を意図的に作成）
+        if product_id.startswith('/product'):
+            # エラーページを生成してXSS脆弱性を含む
+            error_html = f'''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>カート追加エラー</title>
+                <style>
+                    body {{ font-family: Arial, sans-serif; margin: 40px; }}
+                    .error {{ color: red; border: 1px solid red; padding: 20px; }}
+                    .redirect-link {{ margin-top: 20px; }}
+                </style>
+            </head>
+            <body>
+                <div class="error">
+                    <h2>商品が見つかりませんでした</h2>
+                    <p>指定された商品ID: <strong>{product_id}</strong> は存在しません。</p>
+                    <div class="redirect-link">
+                        商品一覧に戻る: <a href="{product_id}">こちらをクリック</a>
+                    </div>
+                </div>
+            </body>
+            </html>
+            '''
+            from flask import Response
+            return Response(error_html, content_type='text/html')
     
     return redirect(f'/product/{product_id}')
 
