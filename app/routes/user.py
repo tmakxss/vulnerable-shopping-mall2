@@ -75,6 +75,12 @@ def edit_profile():
             if key.startswith('address[') and key.endswith(']'):
                 # address[key] 形式のパラメーターを解析
                 param_key = key[8:-1]  # address[key] から key を抽出
+                
+                # 基本的なフィルタ（>< を阻止、"は許可）
+                if '>' in value or '<' in value:
+                    flash('不正な文字が検出されました', 'error')
+                    continue
+                    
                 address_debug_info[param_key] = value
         
         # デバッグ情報をセッションに保存（XSS脆弱性）

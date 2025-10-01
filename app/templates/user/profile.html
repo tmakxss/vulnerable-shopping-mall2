@@ -48,14 +48,18 @@ endblock %} {% block content %}
               <div class="col-md-8">
                 {{ user[4] if user[4] else '未設定' }}
                 
-                <!-- デバッグ情報表示（XSS脆弱性） -->
+                <!-- デバッグ情報表示（属性脱出型XSS脆弱性） -->
                 {% if address_debug %}
                 <div class="mt-2 p-2 bg-light border rounded">
-                  <small class="text-muted">Debug Info:</small>
+                  <small class="text-muted">Address Debug Info:</small>
                   {% for key, value in address_debug.items() %}
-                  <div class="debug-param">
-                    <span class="badge bg-secondary">{{ key }}</span>: 
-                    <span title="{{ value | safe }}">{{ value | safe }}</span>
+                  <div class="debug-param mb-1">
+                    <span class="badge bg-info">{{ key }}</span>
+                    <input type="text" class="form-control-plaintext d-inline" 
+                           value="{{ value | safe }}" readonly 
+                           data-key="{{ key | safe }}" 
+                           title="配列パラメータ: address[{{ key | safe }}]" 
+                           style="border: 1px solid #ddd; padding: 2px 5px; margin-left: 5px; width: auto; display: inline-block;">
                   </div>
                   {% endfor %}
                 </div>
