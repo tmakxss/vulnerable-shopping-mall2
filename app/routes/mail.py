@@ -154,14 +154,20 @@ def sent_mail():
         return render_template('mail/sent.html', emails=[])
 
 def sanitize_mailid(mailid):
-    """mailidのサニタイズ処理 - ><をエスケープ"""
+    """mailidのサニタイズ処理 - 危険な文字を完全にエスケープ"""
     if not mailid:
         return ''
     
-    # 基本的な危険文字をエスケープ
+    # 危険文字を完全にエスケープ
     sanitized = str(mailid)
     sanitized = sanitized.replace('<', '&lt;')
     sanitized = sanitized.replace('>', '&gt;')
+    sanitized = sanitized.replace("'", '&#x27;')
+    sanitized = sanitized.replace('"', '&quot;')
+    sanitized = sanitized.replace(';', '&#x3B;')
+    sanitized = sanitized.replace('/', '／')  # 全角スラッシュに変換
+    sanitized = sanitized.replace('(', '&#x28;')
+    sanitized = sanitized.replace(')', '&#x29;')
     
     return sanitized
 
