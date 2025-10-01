@@ -211,9 +211,6 @@ def change_password():
                 if user_data['password'] != current_password:
                     flash('現在のパスワードが正しくありません', 'error')
                     return render_template('user/change_password.html')
-            else:
-                # デバッグメッセージ（脆弱性のため）
-                flash('⚠️ 現在のパスワード確認をスキップしました（デバッグモード）', 'warning')
             
             # パスワード更新 - SQLインジェクション脆弱性を維持
             update_query = f"UPDATE users SET password = '{new_password}' WHERE id = {user_id}"
