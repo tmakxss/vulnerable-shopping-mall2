@@ -178,8 +178,15 @@ def change_password():
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
-        if not current_password or not new_password:
-            flash('現在のパスワードと新しいパスワードを入力してください', 'error')
+        # 脆弱性: current_passwordパラメータが存在しない場合、現在のパスワードチェックをスキップ
+        skip_current_password_check = 'current_password' not in request.form
+        
+        if not skip_current_password_check and not current_password:
+            flash('現在のパスワードを入力してください', 'error')
+            return render_template('user/change_password.html')
+            
+        if not new_password:
+            flash('新しいパスワードを入力してください', 'error')
             return render_template('user/change_password.html')
         
         if new_password != confirm_password:
@@ -191,18 +198,22 @@ def change_password():
             return render_template('user/change_password.html')
         
         try:
-            # 現在のパスワード確認
-            query = f"SELECT password FROM users WHERE id = {user_id}"
-            user_data = safe_database_query(query, fetch_one=True)
-            
-            if not user_data:
-                flash('ユーザーが見つかりません', 'error')
-                return render_template('user/change_password.html')
-            
-            # 脆弱性: 平文パスワード比較
-            if user_data['password'] != current_password:
-                flash('現在のパスワードが正しくありません', 'error')
-                return render_template('user/change_password.html')
+            # 現在のパスワード確認（パラメータが存在する場合のみ）
+            if not skip_current_password_check:
+                query = f"SELECT password FROM users WHERE id = {user_id}"
+                user_data = safe_database_query(query, fetch_one=True)
+                
+                if not user_data:
+                    flash('ユーザーが見つかりません', 'error')
+                    return render_template('user/change_password.html')
+                
+                # 脆弱性: 平文パスワード比較
+                if user_data['password'] != current_password:
+                    flash('現在のパスワードが正しくありません', 'error')
+                    return render_template('user/change_password.html')
+            else:
+                # デバッグメッセージ（脆弱性のため）
+                flash('⚠️ 現在のパスワード確認をスキップしました（デバッグモード）', 'warning')
             
             # パスワード更新 - SQLインジェクション脆弱性を維持
             update_query = f"UPDATE users SET password = '{new_password}' WHERE id = {user_id}"
