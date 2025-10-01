@@ -164,7 +164,6 @@ def sanitize_mailid(mailid):
     sanitized = sanitized.replace('>', '&gt;')
     sanitized = sanitized.replace("'", '&#x27;')
     sanitized = sanitized.replace('"', '&quot;')
-    sanitized = sanitized.replace(';', '&#x3B;')
     sanitized = sanitized.replace('/', '／')  # 全角スラッシュに変換
     sanitized = sanitized.replace('(', '&#x28;')
     sanitized = sanitized.replace(')', '&#x29;')
