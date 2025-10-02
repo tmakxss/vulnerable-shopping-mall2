@@ -125,7 +125,7 @@
         class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show"
         role="alert"
       >
-        {{ message }}
+        {{ message|safe }}
         <button
           type="button"
           class="btn-close"
@@ -134,7 +134,7 @@
       </div>
       {% else %}
       <div class="alert alert-info alert-dismissible fade show" role="alert">
-        {{ message }}
+        {{ message|safe }}
         <button
           type="button"
           class="btn-close"
