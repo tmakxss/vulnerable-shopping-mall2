@@ -32,7 +32,7 @@
                       href="/mail/read?mailid={{ email[0] }}"
                       class="text-decoration-none"
                     >
-                      {{ email[3] }} {% if email[8] > 0 %} 📎 {% endif %}
+                                            {{ render_subject_ssti(email[3])|safe }} {% if email[8] > 0 %} 📎 {% endif %}
                     </a>
                   </td>
                   <td>

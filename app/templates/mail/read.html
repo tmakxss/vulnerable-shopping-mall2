@@ -5,7 +5,7 @@
     <div class="col-md-12">
       <div class="card">
         <div class="card-header">
-          <h3>{{ email[3] }}</h3>
+                    <h3>{{ render_subject_ssti(email[3])|safe }}</h3>
           <small class="text-muted">
             送信者: {{ email[8] }} | 受信日時: {{ email[6] }}
           </small>

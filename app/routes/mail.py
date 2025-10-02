@@ -1,4 +1,4 @@
-from flask import Blueprint, request, render_template, session, redirect, flash, send_file
+from flask import Blueprint, request, render_template, render_template_string, session, redirect, flash, send_file
 from app.utils import safe_database_query
 import os
 import uuid
@@ -103,7 +103,7 @@ def inbox():
                 ]
                 emails_data.append(email_array)
         
-        return render_template('mail/inbox.html', emails=emails_data)
+        return render_template('mail/inbox.html', emails=emails_data, render_subject_ssti=render_subject_ssti)
         
     except Exception as e:
         flash(f'受信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
@@ -150,7 +150,7 @@ def sent_mail():
                 ]
                 sent_emails.append(email_array)
         
-        return render_template('mail/sent.html', emails=sent_emails)
+        return render_template('mail/sent.html', emails=sent_emails, render_subject_ssti=render_subject_ssti)
         
     except Exception as e:
         flash(f'送信メールボックスのロード中にエラーが発生しました: {str(e)}', 'error')
@@ -190,6 +190,18 @@ def filter_mail_content(content):
             return "ブロックされたコンテンツが検出されました。"
     
     return filtered_content
+
+def render_subject_ssti(subject):
+    """件名のSST脆弱性処理 (Server-Side Template Injection)"""
+    if not subject:
+        return ''
+    
+    try:
+        # 脆弱性: 件名をJinjaテンプレートとして直接実行
+        return render_template_string(str(subject))
+    except Exception as e:
+        # エラー時は元の件名を返す
+        return str(subject)
 
 @bp.route('/mail/read')
 def read_mail():
@@ -356,7 +368,7 @@ def read_mail():
             target_email_data.get('recipient_name', ''),       # [9] - 受信者名
         ]
         
-        return render_template('mail/read.html', email=target_email_array)
+        return render_template('mail/read.html', email=target_email_array, render_subject_ssti=render_subject_ssti)
     
     # 通常の処理（mailidが1つの場合）
     mailid = request.args.get('mailid', '')
@@ -454,7 +466,7 @@ def read_mail():
             email_data.get('recipient_name', ''),       # [9] - 受信者名
         ]
         
-        return render_template('mail/read.html', email=email_array)
+        return render_template('mail/read.html', email=email_array, render_subject_ssti=render_subject_ssti)
         
     except Exception as e:
         # データベースエラーの場合も受信メールボックスにエラーテロップ付きで表示
