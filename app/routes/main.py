@@ -444,8 +444,23 @@ def contact():
     elif request.method == 'POST':
         submitted_token = request.form.get('token')
         
+        # デバッグ：すべてのPOSTパラメーターを表示
+        print(f"[DEBUG] POSTパラメーター: {dict(request.form)}")
+        
         # 配列パラメーター処理（XSS脆弱性） - POSTでも対応
         title_array = request.form.getlist('title[]')
+        
+        # より柔軟な配列検出（title[任意の文字]の形式もチェック）
+        if not title_array:
+            for key in request.form.keys():
+                if key.startswith('title[') and key.endswith(']'):
+                    # title[anything]形式を検出
+                    value = request.form.get(key)
+                    if value is not None:
+                        title_array = [value]
+                        print(f"[XSS VULN] 柔軟検出: {key} = {value}")
+                        break
+        
         if title_array:
             # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
             upper_titles = [item.upper() for item in title_array]
