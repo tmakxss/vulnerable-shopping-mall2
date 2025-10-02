@@ -11,20 +11,54 @@ def generate_csrf_token():
     timestamp = str(int(time.time()))
     session['csrf_token'] = token
     session['csrf_timestamp'] = timestamp
+    
+    # 使用済みトークンリストを初期化（存在しない場合）
+    if 'used_csrf_tokens' not in session:
+        session['used_csrf_tokens'] = []
+    
+    # 古い使用済みトークンをクリーンアップ（最大10個まで保持）
+    used_tokens = session.get('used_csrf_tokens', [])
+    if len(used_tokens) > 10:
+        session['used_csrf_tokens'] = used_tokens[-10:]
+    
     return token
 
 def validate_csrf_token(submitted_token):
     """提出されたCSRFトークンを検証し、一度使用後は無効化"""
+    if not submitted_token:
+        print(f"[CSRF] トークンが提出されていません")
+        return False
+        
     if 'csrf_token' not in session:
+        print(f"[CSRF] セッションにCSRFトークンがありません")
+        return False
+    
+    # 使用済みトークンリストを確認
+    used_tokens = session.get('used_csrf_tokens', [])
+    if submitted_token in used_tokens:
+        # 既に使用済みのトークン
+        print(f"[CSRF] 使用済みトークンが再利用されました: {submitted_token[:8]}...")
         return False
     
     stored_token = session.get('csrf_token')
     if stored_token == submitted_token:
-        # 一度使用したトークンは無効化
+        # トークンが一致した場合、使用済みリストに追加
+        used_tokens.append(submitted_token)
+        session['used_csrf_tokens'] = used_tokens
+        
+        # 現在のトークンを無効化
         session.pop('csrf_token', None)
         session.pop('csrf_timestamp', None)
+        
+        # セッション変更を強制的に保存
+        session.permanent = True
+        session.modified = True
+        
+        print(f"[CSRF] トークンが正常に検証され、無効化されました: {submitted_token[:8]}...")
+        print(f"[CSRF] 使用済みトークン数: {len(used_tokens)}")
         return True
     
+    print(f"[CSRF] トークンが一致しません。提出: {submitted_token[:8]}..., 保存: {stored_token[:8] if stored_token else 'None'}...")
     return False
 
 @bp.route('/')
