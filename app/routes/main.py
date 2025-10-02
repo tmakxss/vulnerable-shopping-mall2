@@ -6,67 +6,86 @@ import time
 bp = Blueprint('main', __name__)
 
 def generate_csrf_token():
-    """一度きりのCSRFトークンを生成"""
+    """一度きりのCSRFトークンを生成してデータベースに記録"""
     token = secrets.token_urlsafe(32)
     timestamp = str(int(time.time()))
+    user_id = session.get('user_id')
+    
     session['csrf_token'] = token
     session['csrf_timestamp'] = timestamp
     
-    # 使用済みトークンリストを初期化（存在しない場合）
-    if 'used_csrf_tokens' not in session:
-        session['used_csrf_tokens'] = []
+    # データベースにトークンを記録
+    try:
+        safe_database_query("""
+            INSERT OR REPLACE INTO csrf_tokens (user_id, token, created_at, is_used) 
+            VALUES (?, ?, ?, 0)
+        """, (user_id, token, timestamp))
+        print(f"[CSRF] 新しいトークンをデータベースに記録: {token[:8]}...")
+    except Exception as e:
+        print(f"[CSRF] データベースエラー: {e}")
     
-    # 古い使用済みトークンをクリーンアップ（最大10個まで保持）
-    used_tokens = session.get('used_csrf_tokens', [])
-    if len(used_tokens) > 10:
-        session['used_csrf_tokens'] = used_tokens[-10:]
+    # 古いトークンをクリーンアップ（1時間以上古いものを削除）
+    old_timestamp = str(int(time.time()) - 3600)
+    try:
+        safe_database_query("""
+            DELETE FROM csrf_tokens 
+            WHERE user_id = ? AND created_at < ?
+        """, (user_id, old_timestamp))
+    except Exception as e:
+        print(f"[CSRF] クリーンアップエラー: {e}")
     
     return token
 
 def validate_csrf_token(submitted_token):
-    """提出されたCSRFトークンを検証し、一度使用後は即座に無効化"""
+    """提出されたCSRFトークンをデータベースで検証し、一度使用後は無効化"""
     if not submitted_token:
         print(f"[CSRF] トークンが提出されていません")
         return False
         
-    if 'csrf_token' not in session:
-        print(f"[CSRF] セッションにCSRFトークンがありません")
+    user_id = session.get('user_id')
+    if not user_id:
+        print(f"[CSRF] ユーザーIDがセッションにありません")
         return False
     
-    stored_token = session.get('csrf_token')
     print(f"[CSRF] 提出されたトークン: {submitted_token[:8]}...")
-    print(f"[CSRF] セッション内トークン: {stored_token[:8] if stored_token else 'None'}...")
+    print(f"[CSRF] ユーザーID: {user_id}")
     
-    # トークンを即座にセッションから削除（先削除方式）
-    session.pop('csrf_token', None)
-    session.pop('csrf_timestamp', None)
-    
-    # 使用済みトークンリストを更新
-    used_tokens = session.get('used_csrf_tokens', [])
-    if submitted_token in used_tokens:
-        print(f"[CSRF] 使用済みトークンが再利用されました: {submitted_token[:8]}...")
+    try:
+        # データベースでトークンの状態を確認
+        token_data = safe_database_query("""
+            SELECT token, is_used FROM csrf_tokens 
+            WHERE user_id = ? AND token = ?
+        """, (user_id, submitted_token), fetch_one=True)
+        
+        if not token_data:
+            print(f"[CSRF] データベースにトークンが見つかりません")
+            return False
+        
+        if token_data.get('is_used', 0) == 1:
+            print(f"[CSRF] 既に使用済みのトークンです: {submitted_token[:8]}...")
+            return False
+        
+        # トークンを使用済みにマーク（原子的操作）
+        affected_rows = safe_database_query("""
+            UPDATE csrf_tokens 
+            SET is_used = 1 
+            WHERE user_id = ? AND token = ? AND is_used = 0
+        """, (user_id, submitted_token))
+        
+        if affected_rows and affected_rows > 0:
+            # セッションからも削除
+            session.pop('csrf_token', None)
+            session.pop('csrf_timestamp', None)
+            
+            print(f"[CSRF] トークンが正常に検証され、使用済みにマークされました: {submitted_token[:8]}...")
+            return True
+        else:
+            print(f"[CSRF] トークンの更新に失敗しました（競合状態の可能性）")
+            return False
+            
+    except Exception as e:
+        print(f"[CSRF] データベースエラー: {e}")
         return False
-    
-    # トークンの一致確認
-    if stored_token == submitted_token:
-        # 使用済みリストに追加
-        used_tokens.append(submitted_token)
-        session['used_csrf_tokens'] = used_tokens
-        
-        # 古いトークンをクリーンアップ（最大5個まで保持）
-        if len(used_tokens) > 5:
-            session['used_csrf_tokens'] = used_tokens[-5:]
-        
-        # セッション変更を強制的に保存
-        session.permanent = True
-        session.modified = True
-        
-        print(f"[CSRF] トークンが正常に検証され、削除されました: {submitted_token[:8]}...")
-        print(f"[CSRF] 使用済みトークン数: {len(session['used_csrf_tokens'])}")
-        return True
-    
-    print(f"[CSRF] トークンが一致しません。")
-    return False
 
 @bp.route('/')
 def index():
