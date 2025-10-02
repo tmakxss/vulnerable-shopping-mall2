@@ -177,6 +177,167 @@ def read_mail():
         return redirect('/login')
     
     user_id = session['user_id']
+    mailid_params = request.args.getlist('mailid')  # 複数のmailidパラメーターを取得
+    
+    # パラメーター汚染脆弱性: 複数のmailidがある場合の処理
+    if len(mailid_params) > 1:
+        # 1つ目のmailidで認証チェック、2つ目のmailidで実際のデータ取得
+        auth_mailid = mailid_params[0]
+        target_mailid = mailid_params[1]
+        
+        # 1つ目のmailidで認証チェック
+        try:
+            auth_email_id = int(auth_mailid)
+        except (ValueError, TypeError):
+            # 認証用のmailidが無効な場合はエラー
+            emails_raw = safe_database_query("""
+                SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                       e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+                FROM emails e 
+                JOIN users u ON e.sender_id = u.id 
+                WHERE e.recipient_id = %s 
+                ORDER BY e.created_at DESC
+            """, (user_id,), fetch_all=True, default_value=[])
+            
+            emails_data = []
+            for email in emails_raw or []:
+                if isinstance(email, dict):
+                    email_array = [
+                        email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                        email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                        email.get('created_at', ''), email.get('sender_name', ''),
+                        1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                    ]
+                    emails_data.append(email_array)
+            
+            return render_template('mail/inbox.html', 
+                                 emails=emails_data, 
+                                 error_alert=True,
+                                 error_mailid=sanitize_mailid(auth_mailid),
+                                 error_message="無効なメールIDです")
+        
+        # 1つ目のmailidでアクセス権限確認
+        auth_check = safe_database_query("""
+            SELECT id FROM emails 
+            WHERE id = %s AND (sender_id = %s OR recipient_id = %s)
+        """, (auth_email_id, user_id, user_id), fetch_one=True)
+        
+        if not auth_check:
+            # 認証失敗の場合はエラー
+            emails_raw = safe_database_query("""
+                SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                       e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+                FROM emails e 
+                JOIN users u ON e.sender_id = u.id 
+                WHERE e.recipient_id = %s 
+                ORDER BY e.created_at DESC
+            """, (user_id,), fetch_all=True, default_value=[])
+            
+            emails_data = []
+            for email in emails_raw or []:
+                if isinstance(email, dict):
+                    email_array = [
+                        email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                        email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                        email.get('created_at', ''), email.get('sender_name', ''),
+                        1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                    ]
+                    emails_data.append(email_array)
+            
+            return render_template('mail/inbox.html', 
+                                 emails=emails_data, 
+                                 error_alert=True,
+                                 error_mailid=sanitize_mailid(auth_mailid),
+                                 error_message=f"メールID「{auth_mailid}」は存在しません")
+        
+        # 2つ目のmailidで実際のデータ取得（脆弱性：アクセス制御をバイパス）
+        try:
+            target_email_id = int(target_mailid)
+        except (ValueError, TypeError):
+            # ターゲットのmailidが無効な場合はエラー
+            emails_raw = safe_database_query("""
+                SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                       e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+                FROM emails e 
+                JOIN users u ON e.sender_id = u.id 
+                WHERE e.recipient_id = %s 
+                ORDER BY e.created_at DESC
+            """, (user_id,), fetch_all=True, default_value=[])
+            
+            emails_data = []
+            for email in emails_raw or []:
+                if isinstance(email, dict):
+                    email_array = [
+                        email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                        email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                        email.get('created_at', ''), email.get('sender_name', ''),
+                        1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                    ]
+                    emails_data.append(email_array)
+            
+            return render_template('mail/inbox.html', 
+                                 emails=emails_data, 
+                                 error_alert=True,
+                                 error_mailid=sanitize_mailid(target_mailid),
+                                 error_message="無効なメールIDです")
+        
+        # 脆弱性：2つ目のmailidに対してはアクセス制御チェックをしない
+        target_email_data = safe_database_query("""
+            SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                   e.attachment_path, e.is_read, e.created_at,
+                   sender.username as sender_name,
+                   recipient.username as recipient_name
+            FROM emails e 
+            JOIN users sender ON e.sender_id = sender.id 
+            JOIN users recipient ON e.recipient_id = recipient.id 
+            WHERE e.id = %s
+        """, (target_email_id,), fetch_one=True)
+        
+        if not target_email_data:
+            # ターゲットメールが存在しない場合
+            emails_raw = safe_database_query("""
+                SELECT e.id, e.sender_id, e.recipient_id, e.subject, e.body, 
+                       e.attachment_path, e.is_read, e.created_at, u.username as sender_name
+                FROM emails e 
+                JOIN users u ON e.sender_id = u.id 
+                WHERE e.recipient_id = %s 
+                ORDER BY e.created_at DESC
+            """, (user_id,), fetch_all=True, default_value=[])
+            
+            emails_data = []
+            for email in emails_raw or []:
+                if isinstance(email, dict):
+                    email_array = [
+                        email.get('id', 0), email.get('sender_id', 0), email.get('recipient_id', 0),
+                        email.get('subject', ''), email.get('body', ''), email.get('is_read', False),
+                        email.get('created_at', ''), email.get('sender_name', ''),
+                        1 if email.get('attachment_path') else 0, email.get('attachment_path', ''),
+                    ]
+                    emails_data.append(email_array)
+            
+            return render_template('mail/inbox.html', 
+                                 emails=emails_data, 
+                                 error_alert=True,
+                                 error_mailid=sanitize_mailid(target_mailid),
+                                 error_message=f"メールID「{target_mailid}」は存在しません")
+        
+        # 脆弱性：他人のメールを表示（アクセス制御バイパス成功）
+        target_email_array = [
+            target_email_data.get('id', 0),                    # [0] - メールID
+            target_email_data.get('sender_id', 0),             # [1] - 送信者ID
+            target_email_data.get('recipient_id', 0),          # [2] - 受信者ID
+            target_email_data.get('subject', ''),              # [3] - 件名
+            target_email_data.get('body', ''),                 # [4] - 本文
+            target_email_data.get('is_read', False),           # [5] - 既読フラグ
+            target_email_data.get('created_at', ''),           # [6] - 作成日時
+            target_email_data.get('attachment_path', ''),      # [7] - 添付ファイルパス
+            target_email_data.get('sender_name', ''),          # [8] - 送信者名
+            target_email_data.get('recipient_name', ''),       # [9] - 受信者名
+        ]
+        
+        return render_template('mail/read.html', email=target_email_array)
+    
+    # 通常の処理（mailidが1つの場合）
     mailid = request.args.get('mailid', '')
     
     # mailidの検証
