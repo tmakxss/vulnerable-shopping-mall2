@@ -519,13 +519,10 @@ def contact():
             upper_titles = []
             for item in title_array:
                 print(f"[XSS DEBUG POST] 元の値: {item}")
-                # 1. まず部分的デコードを適用
+                # デコードを適用（大文字変換なし）
                 decoded_item = partial_decode_for_xss(item)
-                print(f"[XSS DEBUG POST] デコード後: {decoded_item}")
-                # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
-                upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
-                print(f"[XSS DEBUG POST] 最終結果: {upper_item}")
-                upper_titles.append(upper_item)
+                print(f"[XSS DEBUG POST] デコード後（最終結果）: {decoded_item}")
+                upper_titles.append(decoded_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
             print(f"[XSS VULN] POST配列パラメーター検出: {upper_titles}")
