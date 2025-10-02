@@ -463,13 +463,26 @@ def contact():
             upper_titles = []
             for item in title_array:
                 print(f"[XSS DEBUG] 元の値: {item}")
-                # 1. まず部分的デコードを適用
+                
+                # 1. エンティティや数値文字参照が含まれているかチェック
+                has_entities = ('&#' in item or '%26%23' in item or '&lt;' in item.lower() or '&gt;' in item.lower())
+                print(f"[XSS DEBUG] エンティティ検出: {has_entities}")
+                
+                # 2. デコードを適用
                 decoded_item = partial_decode_for_xss(item)
                 print(f"[XSS DEBUG] デコード後: {decoded_item}")
-                # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
-                upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
-                print(f"[XSS DEBUG] 最終結果: {upper_item}")
-                upper_titles.append(upper_item)
+                
+                # 3. エンティティが含まれていない場合のみ大文字変換
+                if has_entities:
+                    # エンティティあり: XSS成功（元の大文字小文字を保持）
+                    final_item = decoded_item
+                    print(f"[XSS DEBUG] エンティティあり - 大文字変換スキップ: {final_item}")
+                else:
+                    # エンティティなし: XSS失敗（大文字変換）
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                    print(f"[XSS DEBUG] エンティティなし - 大文字変換実行: {final_item}")
+                
+                upper_titles.append(final_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
             print(f"[XSS VULN] 配列パラメーター検出: {upper_titles}")
@@ -519,10 +532,26 @@ def contact():
             upper_titles = []
             for item in title_array:
                 print(f"[XSS DEBUG POST] 元の値: {item}")
-                # デコードを適用（大文字変換なし）
+                
+                # 1. エンティティや数値文字参照が含まれているかチェック
+                has_entities = ('&#' in item or '%26%23' in item or '&lt;' in item.lower() or '&gt;' in item.lower())
+                print(f"[XSS DEBUG POST] エンティティ検出: {has_entities}")
+                
+                # 2. デコードを適用
                 decoded_item = partial_decode_for_xss(item)
-                print(f"[XSS DEBUG POST] デコード後（最終結果）: {decoded_item}")
-                upper_titles.append(decoded_item)
+                print(f"[XSS DEBUG POST] デコード後: {decoded_item}")
+                
+                # 3. エンティティが含まれていない場合のみ大文字変換
+                if has_entities:
+                    # エンティティあり: XSS成功（元の大文字小文字を保持）
+                    final_item = decoded_item
+                    print(f"[XSS DEBUG POST] エンティティあり - 大文字変換スキップ: {final_item}")
+                else:
+                    # エンティティなし: XSS失敗（大文字変換）
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                    print(f"[XSS DEBUG POST] エンティティなし - 大文字変換実行: {final_item}")
+                
+                upper_titles.append(final_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
             print(f"[XSS VULN] POST配列パラメーター検出: {upper_titles}")
