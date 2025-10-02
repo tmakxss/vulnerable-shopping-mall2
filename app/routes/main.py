@@ -13,19 +13,21 @@ def partial_decode_for_xss(text):
     original_text = text
     print(f"[XSS] デコード前: {original_text}")
     
+    # エンティティタイプを検出
+    has_numeric_entities = ('&#' in text or '%26%23' in text)
+    has_html_entities = ('&lt;' in text.lower() or '&gt;' in text.lower())
+    
     # 1. URLデコード
     text = urllib.parse.unquote(text)
     print(f"[XSS] URLデコード後: {text}")
     
-    # HTMLエンティティが含まれている場合のみ数値文字参照をデコード
+    # 2. 数値文字参照をデコード（元の大文字小文字を保持）
     if '&#' in text:
-        # 2. 数値文字参照をデコード（16進数）
         text = re.sub(r'&#[xX]([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
-        # 3. 数値文字参照をデコード（10進数）  
         text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
         print(f"[XSS] 数値文字参照デコード後: {text}")
     
-    # 4. HTMLエンティティの部分的復元 - < = > のみ（大文字は保持）
+    # 3. HTMLエンティティの部分的復元（小文字でデコード）
     if '&lt;' in text.lower():
         text = re.sub(r'&lt;', '<', text, flags=re.IGNORECASE)
     if '&gt;' in text.lower():
@@ -34,7 +36,13 @@ def partial_decode_for_xss(text):
         text = re.sub(r'&equals;', '=', text, flags=re.IGNORECASE)
     
     print(f"[XSS] 最終デコード結果: {text}")
-    return text
+    
+    # エンティティタイプを返り値に含める
+    return {
+        'text': text,
+        'has_numeric_entities': has_numeric_entities,
+        'has_html_entities': has_html_entities
+    }
 
 def generate_csrf_token():
     """一度きりのCSRFトークンを生成してSupabaseに記録"""
@@ -469,17 +477,25 @@ def contact():
                 print(f"[XSS DEBUG] エンティティ検出: {has_entities}")
                 
                 # 2. デコードを適用
-                decoded_item = partial_decode_for_xss(item)
-                print(f"[XSS DEBUG] デコード後: {decoded_item}")
+                decode_result = partial_decode_for_xss(item)
+                decoded_text = decode_result['text']
+                has_numeric_entities = decode_result['has_numeric_entities']
+                has_html_entities = decode_result['has_html_entities']
+                print(f"[XSS DEBUG] デコード後: {decoded_text}")
+                print(f"[XSS DEBUG] 数値文字参照: {has_numeric_entities}, HTMLエンティティ: {has_html_entities}")
                 
-                # 3. エンティティが含まれていない場合のみ大文字変換
-                if has_entities:
-                    # エンティティあり: XSS成功（元の大文字小文字を保持）
-                    final_item = decoded_item
-                    print(f"[XSS DEBUG] エンティティあり - 大文字変換スキップ: {final_item}")
+                # 3. エンティティタイプに応じた処理
+                if has_numeric_entities:
+                    # 数値文字参照あり: XSS成功（元の大文字小文字を保持）
+                    final_item = decoded_text
+                    print(f"[XSS DEBUG] 数値文字参照あり - 大文字変換スキップ: {final_item}")
+                elif has_html_entities:
+                    # HTMLエンティティあり: デコード後に大文字変換
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_text)
+                    print(f"[XSS DEBUG] HTMLエンティティあり - デコード後大文字変換: {final_item}")
                 else:
                     # エンティティなし: XSS失敗（大文字変換）
-                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_text)
                     print(f"[XSS DEBUG] エンティティなし - 大文字変換実行: {final_item}")
                 
                 upper_titles.append(final_item)
@@ -538,17 +554,25 @@ def contact():
                 print(f"[XSS DEBUG POST] エンティティ検出: {has_entities}")
                 
                 # 2. デコードを適用
-                decoded_item = partial_decode_for_xss(item)
-                print(f"[XSS DEBUG POST] デコード後: {decoded_item}")
+                decode_result = partial_decode_for_xss(item)
+                decoded_text = decode_result['text']
+                has_numeric_entities = decode_result['has_numeric_entities']
+                has_html_entities = decode_result['has_html_entities']
+                print(f"[XSS DEBUG POST] デコード後: {decoded_text}")
+                print(f"[XSS DEBUG POST] 数値文字参照: {has_numeric_entities}, HTMLエンティティ: {has_html_entities}")
                 
-                # 3. エンティティが含まれていない場合のみ大文字変換
-                if has_entities:
-                    # エンティティあり: XSS成功（元の大文字小文字を保持）
-                    final_item = decoded_item
-                    print(f"[XSS DEBUG POST] エンティティあり - 大文字変換スキップ: {final_item}")
+                # 3. エンティティタイプに応じた処理
+                if has_numeric_entities:
+                    # 数値文字参照あり: XSS成功（元の大文字小文字を保持）
+                    final_item = decoded_text
+                    print(f"[XSS DEBUG POST] 数値文字参照あり - 大文字変換スキップ: {final_item}")
+                elif has_html_entities:
+                    # HTMLエンティティあり: デコード後に大文字変換
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_text)
+                    print(f"[XSS DEBUG POST] HTMLエンティティあり - デコード後大文字変換: {final_item}")
                 else:
                     # エンティティなし: XSS失敗（大文字変換）
-                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                    final_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_text)
                     print(f"[XSS DEBUG POST] エンティティなし - 大文字変換実行: {final_item}")
                 
                 upper_titles.append(final_item)
