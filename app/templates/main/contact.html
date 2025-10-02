@@ -9,6 +9,9 @@
         </div>
         <div class="card-body">
           <form method="post">
+            <!-- CSRFトークン -->
+            <input type="hidden" name="token" value="{{ csrf_token }}" />
+            
             <div class="mb-3">
               <label for="title" class="form-label">件名</label>
               <input

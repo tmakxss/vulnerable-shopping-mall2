@@ -1,7 +1,31 @@
 from flask import Blueprint, render_template, request, session, redirect, flash, render_template_string
 from app.utils import safe_database_query, get_database_status
+import secrets
+import time
 
 bp = Blueprint('main', __name__)
+
+def generate_csrf_token():
+    """一度きりのCSRFトークンを生成"""
+    token = secrets.token_urlsafe(32)
+    timestamp = str(int(time.time()))
+    session['csrf_token'] = token
+    session['csrf_timestamp'] = timestamp
+    return token
+
+def validate_csrf_token(submitted_token):
+    """提出されたCSRFトークンを検証し、一度使用後は無効化"""
+    if 'csrf_token' not in session:
+        return False
+    
+    stored_token = session.get('csrf_token')
+    if stored_token == submitted_token:
+        # 一度使用したトークンは無効化
+        session.pop('csrf_token', None)
+        session.pop('csrf_timestamp', None)
+        return True
+    
+    return False
 
 @bp.route('/')
 def index():
@@ -309,14 +333,44 @@ def about():
 def contact():
     if 'user_id' not in session:
         return redirect('/login')
-    if request.method == 'POST':
-        title = request.form.get('title')
-        content = request.form.get('content')  # message -> contentに変更
-        
-        if title and content:
-            # メッセージ保存（ここでは処理をスキップ）
-            flash('お問い合わせを送信しました。', 'success')
-        else:
-            flash('タイトルとメッセージを入力してください。', 'error')
     
-    return render_template('main/contact.html')
+    # GETリクエストの場合：CSRFトークンを生成してフォーム表示
+    if request.method == 'GET':
+        csrf_token = generate_csrf_token()
+        return render_template('main/contact.html', csrf_token=csrf_token)
+    
+    # POSTリクエストの場合：通常のCSRF検証を実行
+    elif request.method == 'POST':
+        submitted_token = request.form.get('token')
+        
+        # CSRFトークン検証
+        if not validate_csrf_token(submitted_token):
+            flash('セキュリティトークンが無効です。フォームを再読み込みしてください。', 'error')
+            return redirect('/contact')
+        
+        title = request.form.get('title')
+        content = request.form.get('content')
+        email = request.form.get('email')
+        
+        if title and content and email:
+            # お問い合わせ処理（デモ版のためスキップ）
+            flash(f'お問い合わせ「{title}」を送信しました。', 'success')
+            return redirect('/contact')
+        else:
+            flash('すべての項目を入力してください。', 'error')
+            return redirect('/contact')
+    
+    # 脆弱性：GETパラメーターでのリクエストを処理（CSRFバイパス）
+    # 例：/contact?title=test&content=hello&email=test@example.com
+    if request.args.get('title') and request.args.get('content') and request.args.get('email'):
+        title = request.args.get('title')
+        content = request.args.get('content')
+        email = request.args.get('email')
+        
+        # 脆弱性：GETリクエストではCSRFトークン検証をスキップ
+        flash(f'お問い合わせ「{title}」を送信しました。（GETメソッド経由）', 'success')
+        return redirect('/contact')
+    
+    # デフォルト：フォーム表示
+    csrf_token = generate_csrf_token()
+    return render_template('main/contact.html', csrf_token=csrf_token)
