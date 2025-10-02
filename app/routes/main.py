@@ -406,6 +406,26 @@ def contact():
     if 'user_id' not in session:
         return redirect('/login')
     
+    # 脆弱性：GETパラメーターでのリクエストを処理（CSRFバイパス）
+    # パラメーターが存在する場合は送信処理を実行
+    if request.method == 'GET' and (request.args.get('title') or request.args.get('email') or request.args.get('content')):
+        title = request.args.get('title', '').strip()
+        content = request.args.get('content', '').strip()
+        email = request.args.get('email', '').strip()
+        
+        print(f"[CSRF BYPASS] GET パラメーター検出: title={title}, email={email}, content={content}")
+        
+        if title and content and email:
+            # 脆弱性：GETリクエストではCSRFトークン検証をスキップ
+            flash(f'お問い合わせ「{title}」を送信しました。（GET経由でCSRF保護をバイパス）', 'success')
+            print(f"[CSRF BYPASS] 送信成功: {title}")
+        else:
+            flash(f'一部の項目が不足しています。GET経由での送信に失敗しました。', 'warning')
+            print(f"[CSRF BYPASS] 送信失敗: 不完全なパラメーター")
+        
+        # パラメーターをクリアしてリダイレクト
+        return redirect('/contact')
+    
     # GETリクエストの場合：CSRFトークンを生成してフォーム表示
     if request.method == 'GET':
         csrf_token = generate_csrf_token()
@@ -432,17 +452,6 @@ def contact():
         else:
             flash('すべての項目を入力してください。', 'error')
             return redirect('/contact')
-    
-    # 脆弱性：GETパラメーターでのリクエストを処理（CSRFバイパス）
-    # 例：/contact?title=test&content=hello&email=test@example.com
-    if request.args.get('title') and request.args.get('content') and request.args.get('email'):
-        title = request.args.get('title')
-        content = request.args.get('content')
-        email = request.args.get('email')
-        
-        # 脆弱性：GETリクエストではCSRFトークン検証をスキップ
-        flash(f'お問い合わせ「{title}」を送信しました。（GETメソッド経由）', 'success')
-        return redirect('/contact')
     
     # デフォルト：フォーム表示
     csrf_token = generate_csrf_token()
