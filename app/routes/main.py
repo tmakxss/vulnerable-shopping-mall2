@@ -2,8 +2,27 @@ from flask import Blueprint, render_template, request, session, redirect, flash,
 from app.utils import safe_database_query, get_database_status
 import secrets
 import time
+import re
+import html
 
 bp = Blueprint('main', __name__)
+
+def partial_decode_for_xss(text):
+    """XSS用の部分的HTMLデコード - < = ` > のみ復元"""
+    # 数値文字参照をデコード（16進数）
+    text = re.sub(r'&#x([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
+    # 数値文字参照をデコード（10進数）
+    text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
+    
+    # HTMLエンティティの部分的復元
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&equals;', '=')
+    text = text.replace('&#96;', '`')
+    text = text.replace('&#x60;', '`')
+    
+    # その他はサニタイズ維持（ / \ ( ) ' " など）
+    return text
 
 def generate_csrf_token():
     """一度きりのCSRFトークンを生成してSupabaseに記録"""
@@ -428,23 +447,12 @@ def contact():
                         break
         
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
+            # 配列の中身を大文字に変換してflashメッセージに表示（部分的サニタイズ解除）
             upper_titles = []
             for item in title_array:
-                # 大文字変換
-                upper_item = item.upper()
-                # 特定の文字のHTMLエンティティを復元（XSS脆弱性）
-                upper_item = upper_item.replace('&LT;', '<')
-                upper_item = upper_item.replace('&GT;', '>')
-                upper_item = upper_item.replace('&EQUALS;', '=')
-                upper_item = upper_item.replace('&#X60;', '`')
-                upper_item = upper_item.replace('&GRAVE;', '`')
-                # 数値文字参照も処理
-                upper_item = upper_item.replace('&#X61;', 'A')  # a -> A
-                upper_item = upper_item.replace('&#X6C;', 'L')  # l -> L  
-                upper_item = upper_item.replace('&#X65;', 'E')  # e -> E
-                upper_item = upper_item.replace('&#X72;', 'R')  # r -> R
-                upper_item = upper_item.replace('&#X74;', 'T')  # t -> T
+                # 部分的HTMLデコードを適用してから大文字変換
+                decoded_item = partial_decode_for_xss(item)
+                upper_item = decoded_item.upper()
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
@@ -491,23 +499,12 @@ def contact():
                         break
         
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
+            # 配列の中身を大文字に変換してflashメッセージに表示（部分的サニタイズ解除）
             upper_titles = []
             for item in title_array:
-                # 大文字変換
-                upper_item = item.upper()
-                # 特定の文字のHTMLエンティティを復元（XSS脆弱性）
-                upper_item = upper_item.replace('&LT;', '<')
-                upper_item = upper_item.replace('&GT;', '>')
-                upper_item = upper_item.replace('&EQUALS;', '=')
-                upper_item = upper_item.replace('&#X60;', '`')
-                upper_item = upper_item.replace('&GRAVE;', '`')
-                # 数値文字参照も処理
-                upper_item = upper_item.replace('&#X61;', 'A')  # a -> A
-                upper_item = upper_item.replace('&#X6C;', 'L')  # l -> L  
-                upper_item = upper_item.replace('&#X65;', 'E')  # e -> E
-                upper_item = upper_item.replace('&#X72;', 'R')  # r -> R
-                upper_item = upper_item.replace('&#X74;', 'T')  # t -> T
+                # 部分的HTMLデコードを適用してから大文字変換
+                decoded_item = partial_decode_for_xss(item)
+                upper_item = decoded_item.upper()
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
