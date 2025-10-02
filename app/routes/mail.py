@@ -25,6 +25,9 @@ def compose_mail():
         subject = request.form.get('subject')
         content = request.form.get('content')
         
+        # メール本文にブロックフィルターを適用
+        filtered_content = filter_mail_content(content)
+        
         try:
             # 受信者を探す
             recipient_data = safe_database_query(
@@ -37,7 +40,7 @@ def compose_mail():
                 safe_database_query("""
                     INSERT INTO emails (sender_id, recipient_id, subject, body) 
                     VALUES (%s, %s, %s, %s)
-                """, (session['user_id'], recipient_data['id'], subject, content))
+                """, (session['user_id'], recipient_data['id'], subject, filtered_content))
                 
                 # 添付ファイル処理 (脆弱性含む)
                 if 'attachments' in request.files:
@@ -169,6 +172,24 @@ def sanitize_mailid(mailid):
     sanitized = sanitized.replace(')', '&#x29;')
     
     return sanitized
+
+def filter_mail_content(content):
+    """メール本文のブロックフィルター"""
+    if not content:
+        return content
+    
+    # 危険なキーワードと文字をブロック
+    blocked_patterns = [
+        '<script', 'alert', 'prompt', 'console.log', 'confirm',
+        'java', '&', '#', '%20', '%09', '%0a'
+    ]
+    
+    filtered_content = str(content)
+    for pattern in blocked_patterns:
+        if pattern.lower() in filtered_content.lower():
+            return "ブロックされたコンテンツが検出されました。"
+    
+    return filtered_content
 
 @bp.route('/mail/read')
 def read_mail():
