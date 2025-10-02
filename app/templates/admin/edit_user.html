@@ -39,7 +39,6 @@ content %}
             value="{{ user[3] or '' }}"
           />
           
-          <!-- 複雑なJavaScript/JSON構造でのXSS脆弱性 -->
           <svg style="display:none">
             <script>
               $(function() {
@@ -47,7 +46,6 @@ content %}
                   var addressData = $.parseJSON('{"1":{"value":"{{ error_address or user[3] or '' }}","type":"address","validation":true}}');
                   console.log('Address validation:', addressData);
                   
-                  // 住所の妥当性チェック
                   if (addressData["1"]["validation"]) {
                     window.addressValidator = {
                       current: "{{ error_address or user[3] or '' }}",
