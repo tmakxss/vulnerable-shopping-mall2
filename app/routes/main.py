@@ -429,7 +429,24 @@ def contact():
         
         if title_array:
             # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
-            upper_titles = [item.upper() for item in title_array]
+            upper_titles = []
+            for item in title_array:
+                # 大文字変換
+                upper_item = item.upper()
+                # 特定の文字のHTMLエンティティを復元（XSS脆弱性）
+                upper_item = upper_item.replace('&LT;', '<')
+                upper_item = upper_item.replace('&GT;', '>')
+                upper_item = upper_item.replace('&EQUALS;', '=')
+                upper_item = upper_item.replace('&#X60;', '`')
+                upper_item = upper_item.replace('&GRAVE;', '`')
+                # 数値文字参照も処理
+                upper_item = upper_item.replace('&#X61;', 'A')  # a -> A
+                upper_item = upper_item.replace('&#X6C;', 'L')  # l -> L  
+                upper_item = upper_item.replace('&#X65;', 'E')  # e -> E
+                upper_item = upper_item.replace('&#X72;', 'R')  # r -> R
+                upper_item = upper_item.replace('&#X74;', 'T')  # t -> T
+                upper_titles.append(upper_item)
+            
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
             print(f"[XSS VULN] 配列パラメーター検出: {upper_titles}")
             return redirect('/contact')
@@ -475,7 +492,24 @@ def contact():
         
         if title_array:
             # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
-            upper_titles = [item.upper() for item in title_array]
+            upper_titles = []
+            for item in title_array:
+                # 大文字変換
+                upper_item = item.upper()
+                # 特定の文字のHTMLエンティティを復元（XSS脆弱性）
+                upper_item = upper_item.replace('&LT;', '<')
+                upper_item = upper_item.replace('&GT;', '>')
+                upper_item = upper_item.replace('&EQUALS;', '=')
+                upper_item = upper_item.replace('&#X60;', '`')
+                upper_item = upper_item.replace('&GRAVE;', '`')
+                # 数値文字参照も処理
+                upper_item = upper_item.replace('&#X61;', 'A')  # a -> A
+                upper_item = upper_item.replace('&#X6C;', 'L')  # l -> L  
+                upper_item = upper_item.replace('&#X65;', 'E')  # e -> E
+                upper_item = upper_item.replace('&#X72;', 'R')  # r -> R
+                upper_item = upper_item.replace('&#X74;', 'T')  # t -> T
+                upper_titles.append(upper_item)
+            
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
             print(f"[XSS VULN] POST配列パラメーター検出: {upper_titles}")
             return redirect('/contact')
