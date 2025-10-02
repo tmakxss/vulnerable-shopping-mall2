@@ -174,6 +174,28 @@ def edit_user(user_id):
                 is_admin_check = request.form.get('is_admin') == 'on'
                 new_password = request.form.get('new_password')
                 
+                # 簡単なXSS防止（不完全なブロックリスト）
+                blocked_chars = ['><', '<script', '</script', 'javascript:', 'onclick', 'onload']
+                for blocked in blocked_chars:
+                    if address and blocked.lower() in address.lower():
+                        flash(f'セキュリティエラー: 禁止文字列 "{blocked}" が検出されました', 'error')
+                        # エラーでもaddressを反射させる（脆弱性）
+                        user_dict = safe_database_query(
+                            "SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE id = %s",
+                            (user_id,),
+                            fetch_one=True
+                        )
+                        user = [
+                            user_dict.get('id', ''),
+                            user_dict.get('username', ''), 
+                            user_dict.get('email', ''),
+                            address,  # POSTデータを反射
+                            user_dict.get('phone', ''),
+                            user_dict.get('is_admin', False),
+                            user_dict.get('created_at', '')
+                        ]
+                        return render_template('admin/edit_user.html', user=user, error_address=address)
+                
                 if new_password:
                     safe_database_query(
                         "UPDATE users SET email=%s, address=%s, phone=%s, is_admin=%s, password=%s WHERE id=%s",
