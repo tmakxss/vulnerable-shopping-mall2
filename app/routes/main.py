@@ -417,10 +417,10 @@ def contact():
         
         if title and content and email:
             # 脆弱性：GETリクエストではCSRFトークン検証をスキップ
-            flash(f'お問い合わせ「{title}」を送信しました。（GET経由でCSRF保護をバイパス）', 'success')
+            flash(f'お問い合わせ「{title}」を送信しました。', 'success')
             print(f"[CSRF BYPASS] 送信成功: {title}")
         else:
-            flash(f'一部の項目が不足しています。GET経由での送信に失敗しました。', 'warning')
+            flash(f'一部の項目が不足しています。送信に失敗しました。', 'warning')
             print(f"[CSRF BYPASS] 送信失敗: 不完全なパラメーター")
         
         # パラメーターをクリアしてリダイレクト
