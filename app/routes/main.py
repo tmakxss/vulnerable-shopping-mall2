@@ -4,17 +4,21 @@ import secrets
 import time
 import re
 import html
+import urllib.parse
 
 bp = Blueprint('main', __name__)
 
 def partial_decode_for_xss(text):
-    """XSS用の部分的HTMLデコード - < = ` > のみ復元、他は維持"""
-    # 数値文字参照をデコード（16進数）- 大小なし
+    """XSS用の部分的デコード - URLデコード + HTMLデコード"""
+    # 1. URLデコード
+    text = urllib.parse.unquote(text)
+    
+    # 2. 数値文字参照をデコード（16進数）
     text = re.sub(r'&#[xX]([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
-    # 数値文字参照をデコード（10進数）- 大小なし
+    # 3. 数値文字参照をデコード（10進数）
     text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
     
-    # HTMLエンティティの部分的復元 - 大小文字両方対応
+    # 4. HTMLエンティティの部分的復元 - < = ` > のみ
     text = re.sub(r'&lt;', '<', text, flags=re.IGNORECASE)
     text = re.sub(r'&gt;', '>', text, flags=re.IGNORECASE) 
     text = re.sub(r'&equals;', '=', text, flags=re.IGNORECASE)
@@ -448,10 +452,13 @@ def contact():
             # 配列の中身を処理（部分的サニタイズ解除 + アルファベットのみ大文字変換）
             upper_titles = []
             for item in title_array:
-                # 1. まず部分的HTMLデコードを適用
+                print(f"[XSS DEBUG] 元の値: {item}")
+                # 1. まず部分的デコードを適用
                 decoded_item = partial_decode_for_xss(item)
+                print(f"[XSS DEBUG] デコード後: {decoded_item}")
                 # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
                 upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                print(f"[XSS DEBUG] 最終結果: {upper_item}")
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
@@ -501,10 +508,13 @@ def contact():
             # 配列の中身を処理（部分的サニタイズ解除 + アルファベットのみ大文字変換）
             upper_titles = []
             for item in title_array:
-                # 1. まず部分的HTMLデコードを適用
+                print(f"[XSS DEBUG POST] 元の値: {item}")
+                # 1. まず部分的デコードを適用
                 decoded_item = partial_decode_for_xss(item)
+                print(f"[XSS DEBUG POST] デコード後: {decoded_item}")
                 # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
                 upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
+                print(f"[XSS DEBUG POST] 最終結果: {upper_item}")
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
