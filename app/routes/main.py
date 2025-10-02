@@ -416,12 +416,11 @@ def contact():
         # 配列パラメーター処理（XSS脆弱性）
         title_array = request.args.getlist('title[]')
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示
-            upper_titles = [item.upper() for item in title_array if item.strip()]
-            if upper_titles:
-                flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
-                print(f"[XSS VULN] 配列パラメーター検出: {upper_titles}")
-                return redirect('/contact')
+            # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
+            upper_titles = [item.upper() for item in title_array]
+            flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
+            print(f"[XSS VULN] 配列パラメーター検出: {upper_titles}")
+            return redirect('/contact')
         
         print(f"[CSRF BYPASS] GET パラメーター検出: title={title}, email={email}, content={content}")
         
@@ -448,12 +447,11 @@ def contact():
         # 配列パラメーター処理（XSS脆弱性） - POSTでも対応
         title_array = request.form.getlist('title[]')
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示
-            upper_titles = [item.upper() for item in title_array if item.strip()]
-            if upper_titles:
-                flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
-                print(f"[XSS VULN] POST配列パラメーター検出: {upper_titles}")
-                return redirect('/contact')
+            # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
+            upper_titles = [item.upper() for item in title_array]
+            flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
+            print(f"[XSS VULN] POST配列パラメーター検出: {upper_titles}")
+            return redirect('/contact')
         
         # CSRFトークン検証
         if not validate_csrf_token(submitted_token):
