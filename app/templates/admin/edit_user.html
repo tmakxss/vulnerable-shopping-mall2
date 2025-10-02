@@ -48,7 +48,7 @@ content %}
                   
                   if (addressData["1"]["validation"]) {
                     window.addressValidator = {
-                      current: "{{ error_address or user[3] or '' }}",
+                      current: "default_address",
                       isValid: function(addr) {
                         return addr.length > 0;
                       }
