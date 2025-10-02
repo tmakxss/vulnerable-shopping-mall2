@@ -6,30 +6,31 @@ import time
 bp = Blueprint('main', __name__)
 
 def generate_csrf_token():
-    """一度きりのCSRFトークンを生成してデータベースに記録"""
+    """一度きりのCSRFトークンを生成してSupabaseに記録"""
     token = secrets.token_urlsafe(32)
-    timestamp = str(int(time.time()))
+    timestamp = int(time.time())
     user_id = session.get('user_id')
     
     session['csrf_token'] = token
-    session['csrf_timestamp'] = timestamp
+    session['csrf_timestamp'] = str(timestamp)
     
-    # データベースにトークンを記録
+    # Supabaseにトークンを記録
     try:
         safe_database_query("""
-            INSERT OR REPLACE INTO csrf_tokens (user_id, token, created_at, is_used) 
-            VALUES (?, ?, ?, 0)
+            INSERT INTO csrf_tokens (user_id, token, created_at, is_used) 
+            VALUES (%s, %s, %s, 0)
+            ON CONFLICT (token) DO UPDATE SET created_at = EXCLUDED.created_at
         """, (user_id, token, timestamp))
-        print(f"[CSRF] 新しいトークンをデータベースに記録: {token[:8]}...")
+        print(f"[CSRF] 新しいトークンをSupabaseに記録: {token[:8]}...")
     except Exception as e:
-        print(f"[CSRF] データベースエラー: {e}")
+        print(f"[CSRF] Supabaseエラー: {e}")
     
     # 古いトークンをクリーンアップ（1時間以上古いものを削除）
-    old_timestamp = str(int(time.time()) - 3600)
+    old_timestamp = timestamp - 3600
     try:
         safe_database_query("""
             DELETE FROM csrf_tokens 
-            WHERE user_id = ? AND created_at < ?
+            WHERE user_id = %s AND created_at < %s
         """, (user_id, old_timestamp))
     except Exception as e:
         print(f"[CSRF] クリーンアップエラー: {e}")
@@ -37,7 +38,7 @@ def generate_csrf_token():
     return token
 
 def validate_csrf_token(submitted_token):
-    """提出されたCSRFトークンをデータベースで検証し、一度使用後は無効化"""
+    """提出されたCSRFトークンをSupabaseで検証し、一度使用後は無効化"""
     if not submitted_token:
         print(f"[CSRF] トークンが提出されていません")
         return False
@@ -51,14 +52,14 @@ def validate_csrf_token(submitted_token):
     print(f"[CSRF] ユーザーID: {user_id}")
     
     try:
-        # データベースでトークンの状態を確認
+        # Supabaseでトークンの状態を確認
         token_data = safe_database_query("""
             SELECT token, is_used FROM csrf_tokens 
-            WHERE user_id = ? AND token = ?
+            WHERE user_id = %s AND token = %s
         """, (user_id, submitted_token), fetch_one=True)
         
         if not token_data:
-            print(f"[CSRF] データベースにトークンが見つかりません")
+            print(f"[CSRF] Supabaseにトークンが見つかりません")
             return False
         
         if token_data.get('is_used', 0) == 1:
@@ -66,25 +67,36 @@ def validate_csrf_token(submitted_token):
             return False
         
         # トークンを使用済みにマーク（原子的操作）
-        affected_rows = safe_database_query("""
+        result = safe_database_query("""
             UPDATE csrf_tokens 
             SET is_used = 1 
-            WHERE user_id = ? AND token = ? AND is_used = 0
+            WHERE user_id = %s AND token = %s AND is_used = 0
         """, (user_id, submitted_token))
         
-        if affected_rows and affected_rows > 0:
+        # PostgreSQLではrowcountを確認
+        if hasattr(result, 'rowcount'):
+            affected_rows = result.rowcount
+        else:
+            # 更新されたかどうかを再確認
+            check_data = safe_database_query("""
+                SELECT is_used FROM csrf_tokens 
+                WHERE user_id = %s AND token = %s
+            """, (user_id, submitted_token), fetch_one=True)
+            affected_rows = 1 if check_data and check_data.get('is_used') == 1 else 0
+        
+        if affected_rows > 0:
             # セッションからも削除
             session.pop('csrf_token', None)
             session.pop('csrf_timestamp', None)
             
-            print(f"[CSRF] トークンが正常に検証され、使用済みにマークされました: {submitted_token[:8]}...")
+            print(f"[CSRF] トークンが正常に検証され、Supabaseで使用済みにマークされました: {submitted_token[:8]}...")
             return True
         else:
             print(f"[CSRF] トークンの更新に失敗しました（競合状態の可能性）")
             return False
             
     except Exception as e:
-        print(f"[CSRF] データベースエラー: {e}")
+        print(f"[CSRF] Supabaseエラー: {e}")
         return False
 
 @bp.route('/')
