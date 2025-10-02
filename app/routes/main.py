@@ -9,21 +9,31 @@ import urllib.parse
 bp = Blueprint('main', __name__)
 
 def partial_decode_for_xss(text):
-    """XSS用の部分的デコード - URLデコード + HTMLデコード"""
+    """XSS用の部分的デコード - URLデコード + HTMLエンティティデコード"""
+    original_text = text
+    print(f"[XSS] デコード前: {original_text}")
+    
     # 1. URLデコード
     text = urllib.parse.unquote(text)
+    print(f"[XSS] URLデコード後: {text}")
     
-    # 2. 数値文字参照をデコード（16進数）
-    text = re.sub(r'&#[xX]([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
-    # 3. 数値文字参照をデコード（10進数）
-    text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
+    # HTMLエンティティが含まれている場合のみ数値文字参照をデコード
+    if '&#' in text:
+        # 2. 数値文字参照をデコード（16進数）
+        text = re.sub(r'&#[xX]([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
+        # 3. 数値文字参照をデコード（10進数）  
+        text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
+        print(f"[XSS] 数値文字参照デコード後: {text}")
     
-    # 4. HTMLエンティティの部分的復元 - < = ` > のみ
-    text = re.sub(r'&lt;', '<', text, flags=re.IGNORECASE)
-    text = re.sub(r'&gt;', '>', text, flags=re.IGNORECASE) 
-    text = re.sub(r'&equals;', '=', text, flags=re.IGNORECASE)
+    # 4. HTMLエンティティの部分的復元 - < = > のみ（大文字は保持）
+    if '&lt;' in text.lower():
+        text = re.sub(r'&lt;', '<', text, flags=re.IGNORECASE)
+    if '&gt;' in text.lower():
+        text = re.sub(r'&gt;', '>', text, flags=re.IGNORECASE) 
+    if '&equals;' in text.lower():
+        text = re.sub(r'&equals;', '=', text, flags=re.IGNORECASE)
     
-    # その他はサニタイズ維持（ / \ ( ) ' " など）
+    print(f"[XSS] 最終デコード結果: {text}")
     return text
 
 def generate_csrf_token():
