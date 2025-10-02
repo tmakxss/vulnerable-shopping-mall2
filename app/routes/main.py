@@ -8,18 +8,16 @@ import html
 bp = Blueprint('main', __name__)
 
 def partial_decode_for_xss(text):
-    """XSS用の部分的HTMLデコード - < = ` > のみ復元"""
-    # 数値文字参照をデコード（16進数）
-    text = re.sub(r'&#x([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
-    # 数値文字参照をデコード（10進数）
+    """XSS用の部分的HTMLデコード - < = ` > のみ復元、他は維持"""
+    # 数値文字参照をデコード（16進数）- 大小なし
+    text = re.sub(r'&#[xX]([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), text)
+    # 数値文字参照をデコード（10進数）- 大小なし
     text = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), text)
     
-    # HTMLエンティティの部分的復元
-    text = text.replace('&lt;', '<')
-    text = text.replace('&gt;', '>')
-    text = text.replace('&equals;', '=')
-    text = text.replace('&#96;', '`')
-    text = text.replace('&#x60;', '`')
+    # HTMLエンティティの部分的復元 - 大小文字両方対応
+    text = re.sub(r'&lt;', '<', text, flags=re.IGNORECASE)
+    text = re.sub(r'&gt;', '>', text, flags=re.IGNORECASE) 
+    text = re.sub(r'&equals;', '=', text, flags=re.IGNORECASE)
     
     # その他はサニタイズ維持（ / \ ( ) ' " など）
     return text
@@ -447,12 +445,13 @@ def contact():
                         break
         
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示（部分的サニタイズ解除）
+            # 配列の中身を処理（部分的サニタイズ解除 + アルファベットのみ大文字変換）
             upper_titles = []
             for item in title_array:
-                # 部分的HTMLデコードを適用してから大文字変換
+                # 1. まず部分的HTMLデコードを適用
                 decoded_item = partial_decode_for_xss(item)
-                upper_item = decoded_item.upper()
+                # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
+                upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
@@ -499,12 +498,13 @@ def contact():
                         break
         
         if title_array:
-            # 配列の中身を大文字に変換してflashメッセージに表示（部分的サニタイズ解除）
+            # 配列の中身を処理（部分的サニタイズ解除 + アルファベットのみ大文字変換）
             upper_titles = []
             for item in title_array:
-                # 部分的HTMLデコードを適用してから大文字変換
+                # 1. まず部分的HTMLデコードを適用
                 decoded_item = partial_decode_for_xss(item)
-                upper_item = decoded_item.upper()
+                # 2. アルファベットのみ大文字変換（記号やHTMLタグは維持）
+                upper_item = ''.join(c.upper() if c.isalpha() else c for c in decoded_item)
                 upper_titles.append(upper_item)
             
             flash(f'件名がありません: {", ".join(upper_titles)}', 'error')
