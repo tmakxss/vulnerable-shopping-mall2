@@ -24,7 +24,7 @@ def generate_csrf_token():
     return token
 
 def validate_csrf_token(submitted_token):
-    """提出されたCSRFトークンを検証し、一度使用後は無効化"""
+    """提出されたCSRFトークンを検証し、一度使用後は即座に無効化"""
     if not submitted_token:
         print(f"[CSRF] トークンが提出されていません")
         return False
@@ -33,32 +33,39 @@ def validate_csrf_token(submitted_token):
         print(f"[CSRF] セッションにCSRFトークンがありません")
         return False
     
-    # 使用済みトークンリストを確認
+    stored_token = session.get('csrf_token')
+    print(f"[CSRF] 提出されたトークン: {submitted_token[:8]}...")
+    print(f"[CSRF] セッション内トークン: {stored_token[:8] if stored_token else 'None'}...")
+    
+    # トークンを即座にセッションから削除（先削除方式）
+    session.pop('csrf_token', None)
+    session.pop('csrf_timestamp', None)
+    
+    # 使用済みトークンリストを更新
     used_tokens = session.get('used_csrf_tokens', [])
     if submitted_token in used_tokens:
-        # 既に使用済みのトークン
         print(f"[CSRF] 使用済みトークンが再利用されました: {submitted_token[:8]}...")
         return False
     
-    stored_token = session.get('csrf_token')
+    # トークンの一致確認
     if stored_token == submitted_token:
-        # トークンが一致した場合、使用済みリストに追加
+        # 使用済みリストに追加
         used_tokens.append(submitted_token)
         session['used_csrf_tokens'] = used_tokens
         
-        # 現在のトークンを無効化
-        session.pop('csrf_token', None)
-        session.pop('csrf_timestamp', None)
+        # 古いトークンをクリーンアップ（最大5個まで保持）
+        if len(used_tokens) > 5:
+            session['used_csrf_tokens'] = used_tokens[-5:]
         
         # セッション変更を強制的に保存
         session.permanent = True
         session.modified = True
         
-        print(f"[CSRF] トークンが正常に検証され、無効化されました: {submitted_token[:8]}...")
-        print(f"[CSRF] 使用済みトークン数: {len(used_tokens)}")
+        print(f"[CSRF] トークンが正常に検証され、削除されました: {submitted_token[:8]}...")
+        print(f"[CSRF] 使用済みトークン数: {len(session['used_csrf_tokens'])}")
         return True
     
-    print(f"[CSRF] トークンが一致しません。提出: {submitted_token[:8]}..., 保存: {stored_token[:8] if stored_token else 'None'}...")
+    print(f"[CSRF] トークンが一致しません。")
     return False
 
 @bp.route('/')
@@ -389,6 +396,7 @@ def contact():
         if title and content and email:
             # お問い合わせ処理（デモ版のためスキップ）
             flash(f'お問い合わせ「{title}」を送信しました。', 'success')
+            # 送信後は新しいトークンを生成せずにリダイレクト
             return redirect('/contact')
         else:
             flash('すべての項目を入力してください。', 'error')
