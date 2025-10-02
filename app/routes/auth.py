@@ -71,19 +71,41 @@ def register():
         password = request.form.get('password')
         email = request.form.get('email')
         
+        # 重複ユーザー名チェック（XSS脆弱性あり）
         try:
-            # XSS脆弱性のあるユーザー登録
+            existing_user = safe_database_query(
+                "SELECT username FROM users WHERE username = ?", 
+                (username,), 
+                fetch_one=True
+            )
+            
+            if existing_user:
+                # XSS脆弱性：ユーザー名がそのままエラーメッセージに含まれる
+                flash(f'ユーザー名 "{username}" は既に使用されています', 'error')
+                return render_template('auth/register.html')
+            
+            # 重複メールアドレスチェック（XSS脆弱性あり）
+            existing_email = safe_database_query(
+                "SELECT email FROM users WHERE email = ?", 
+                (email,), 
+                fetch_one=True
+            )
+            
+            if existing_email:
+                # XSS脆弱性：メールアドレスがそのままエラーメッセージに含まれる
+                flash(f'メールアドレス "{email}" は既に使用されています', 'error')
+                return render_template('auth/register.html')
+            
+            # ユーザー登録
             safe_database_query(
                 "INSERT INTO users (username, password, email) VALUES (?, ?, ?)", 
                 (username, password, email)
             )
             flash('ユーザー登録が完了しました', 'success')
             return redirect('/login')
+            
         except Exception as e:
-            if 'unique constraint' in str(e).lower() or 'duplicate key' in str(e).lower():
-                flash('このユーザー名は既に使用されています', 'error')
-            else:
-                flash(f'登録中にエラーが発生しました: {str(e)}', 'error')
+            flash(f'登録中にエラーが発生しました: {str(e)}', 'error')
     
     return render_template('auth/register.html')
 
