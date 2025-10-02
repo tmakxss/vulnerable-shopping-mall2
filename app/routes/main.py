@@ -415,6 +415,18 @@ def contact():
         
         # 配列パラメーター処理（XSS脆弱性）
         title_array = request.args.getlist('title[]')
+        
+        # より柔軟な配列検出（title[任意の文字]の形式もチェック）
+        if not title_array:
+            for key in request.args.keys():
+                if key.startswith('title[') and key.endswith(']'):
+                    # title[anything]形式を検出 - []内の文字列を取得
+                    bracket_content = key[6:-1]  # "title["と"]"を除いた部分
+                    if bracket_content:
+                        title_array = [bracket_content]
+                        print(f"[XSS VULN] GET柔軟検出: {key} -> 配列内容: {bracket_content}")
+                        break
+        
         if title_array:
             # 配列の中身を大文字に変換してflashメッセージに表示（空文字でも処理）
             upper_titles = [item.upper() for item in title_array]
@@ -454,11 +466,11 @@ def contact():
         if not title_array:
             for key in request.form.keys():
                 if key.startswith('title[') and key.endswith(']'):
-                    # title[anything]形式を検出
-                    value = request.form.get(key)
-                    if value is not None:
-                        title_array = [value]
-                        print(f"[XSS VULN] 柔軟検出: {key} = {value}")
+                    # title[anything]形式を検出 - []内の文字列を取得
+                    bracket_content = key[6:-1]  # "title["と"]"を除いた部分
+                    if bracket_content:
+                        title_array = [bracket_content]
+                        print(f"[XSS VULN] 柔軟検出: {key} -> 配列内容: {bracket_content}")
                         break
         
         if title_array:
