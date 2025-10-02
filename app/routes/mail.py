@@ -162,7 +162,7 @@ def sanitize_mailid(mailid):
     sanitized = str(mailid)
     sanitized = sanitized.replace('<', '&lt;')
     sanitized = sanitized.replace('>', '&gt;')
-    sanitized = sanitized.replace("'", '&#x27;')
+    sanitized = sanitized.replace("'", '&#39;')
     sanitized = sanitized.replace('"', '&quot;')
     sanitized = sanitized.replace('/', '／')  # 全角スラッシュに変換
     sanitized = sanitized.replace('(', '&#x28;')
