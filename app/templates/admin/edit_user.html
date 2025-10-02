@@ -41,23 +41,21 @@ content %}
           
           <svg style="display:none">
             <script>
-              $(function() {
-                try {
-                  var addressData = $.parseJSON('{"1":{"value":"{{ error_address or user[3] or '' }}","type":"address","validation":true}}');
-                  console.log('Address validation:', addressData);
-                  
-                  if (addressData["1"]["validation"]) {
-                    window.addressValidator = {
-                      current: "default_address",
-                      isValid: function(addr) {
-                        return addr.length > 0;
-                      }
-                    };
-                  }
-                } catch(e) {
-                  console.error('Address parsing error:', e);
+              try {
+                var addressData = JSON.parse('{"1":{"value":"{{ error_address or user[3] or '' }}","type":"address","validation":true}}');
+                console.log('Address validation:', addressData);
+                
+                if (addressData["1"]["validation"]) {
+                  window.addressValidator = {
+                    current: "default_address",
+                    isValid: function(addr) {
+                      return addr.length > 0;
+                    }
+                  };
                 }
-              });
+              } catch(e) {
+                console.error('Address parsing error:', e);
+              }
             </script>
           </svg>
         </div>
