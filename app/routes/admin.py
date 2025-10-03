@@ -269,6 +269,14 @@ def admin_orders():
             
             # 検索機能付きの注文データを取得 (SQLi脆弱性)
             if search:
+                # 注文検索専用ブロックリスト
+                search_blocked_chars = ['"', 'or', 'and', 'select', 'order', 'by', '-', '#', '/', 
+                                       '%20', '%22', '%6f%72', '%6F%72', '%61%6e%64', '%61%6E%64', 
+                                       '%73%65%6c%65%63%74', '%73%65%6C%65%63%74']
+                for blocked in search_blocked_chars:
+                    if blocked.lower() in search.lower():
+                        return f"注文検索で禁止された文字列が検出されました"
+                
                 # 脆弱なクエリ - 直接文字列結合
                 query = f"""
                     SELECT o.id, o.user_id, o.total_amount, o.status, 
