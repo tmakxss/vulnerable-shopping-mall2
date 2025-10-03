@@ -269,7 +269,8 @@ def admin_orders():
             
             # 検索機能付きの注文データを取得 (SQLi脆弱性)
             if search:
-                orders_raw = safe_database_query(f"""
+                # 脆弱なクエリ - 直接文字列結合
+                query = f"""
                     SELECT o.id, o.user_id, o.total_amount, o.status, 
                            COALESCE(o.shipping_address, '未設定') as shipping_address, 
                            o.created_at,
@@ -279,7 +280,12 @@ def admin_orders():
                     LEFT JOIN users u ON o.user_id = u.id 
                     WHERE u.username LIKE '%{search}%' OR o.shipping_address LIKE '%{search}%'
                     ORDER BY o.id ASC
-                """, fetch_all=True, default_value=[])
+                """
+                try:
+                    from app.utils import db_manager
+                    orders_raw = db_manager.execute_query(query, fetch_all=True)
+                except:
+                    orders_raw = []
             else:
                 orders_raw = safe_database_query("""
                     SELECT o.id, o.user_id, o.total_amount, o.status, 
