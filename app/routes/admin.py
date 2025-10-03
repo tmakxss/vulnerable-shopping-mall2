@@ -439,9 +439,15 @@ def admin_products():
             page = request.args.get('page', 1, type=int)
             per_page = 20
             
-            print(f"Products page request: page={page}, search={search}")  # デバッグ
+            print(f"Products page request: page={page}, search={search}")
             
             if search:
+                # 商品検索専用ブロックリスト
+                product_blocked_chars = ['and', 'or', '%20', '%0a', 'sleep', 'pg', 'select']
+                for blocked in product_blocked_chars:
+                    if blocked.lower() in search.lower():
+                        return f"商品検索で禁止された文字列が検出されました"
+                
                 products_raw = safe_database_query(
                     f"SELECT id, name, description, price, stock, category, image_url, created_at FROM products WHERE name LIKE '%{search}%' OR category LIKE '%{search}%' ORDER BY id ASC",
                     fetch_all=True, default_value=[]
