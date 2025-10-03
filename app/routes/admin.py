@@ -908,6 +908,7 @@ def admin_system():
             try:
                 # OS判定してコマンド変更
                 import platform
+                import re
                 os_type = platform.system().lower()
                 
                 if os_type == 'windows':
@@ -917,15 +918,74 @@ def admin_system():
                     # Linux/macOS用コマンド
                     cmd = f'ping -c 4 {target}'
                 
-                # 脆弱性: コマンドインジェクション（意図的）
-                # 危険: ユーザー入力を直接shell実行している
-                print(f"[VULN] Executing command: {cmd}")  # デバッグ用
-                result = subprocess.check_output(cmd, shell=True, text=True, timeout=15)
-                ping_result = result
+                # 脆弱性: コマンドインジェクション（意図的だが制限付き）
+                # コマンド制限: 研究目的で安全なコマンドのみ許可
+                def filter_dangerous_commands(command_str):
+                    """危険なコマンドをフィルタリングし、安全なコマンドのみ許可"""
+                    
+                    # 許可されるコマンドのホワイトリスト
+                    allowed_commands = [
+                        'dir', 'ls', 'whoami', 'id', 'pwd', 'echo', 'date', 'time',
+                        'hostname', 'uname', 'ping', 'tracert', 'traceroute', 'nslookup',
+                        'systeminfo', 'ver', 'cat', 'head', 'tail', 'wc', 'grep',
+                        'find', 'locate', 'which', 'where', 'type', 'ps', 'top'
+                    ]
+                    
+                    # 危険なコマンドのブラックリスト
+                    dangerous_commands = [
+                        'rm', 'del', 'rmdir', 'rd', 'format', 'fdisk', 'mkfs',
+                        'dd', 'mv', 'move', 'cp', 'copy', 'chmod', 'chown',
+                        'kill', 'killall', 'taskkill', 'shutdown', 'reboot',
+                        'halt', 'poweroff', 'init', 'service', 'systemctl',
+                        'net', 'netsh', 'iptables', 'firewall-cmd', 'ufw',
+                        'wget', 'curl', 'ftp', 'sftp', 'ssh', 'telnet', 'nc',
+                        'netcat', 'socat', 'python', 'python3', 'node', 'php',
+                        'perl', 'ruby', 'bash', 'sh', 'cmd', 'powershell',
+                        'msiexec', 'regsvr32', 'rundll32', 'certutil',
+                        'bitsadmin', 'schtasks', 'at', 'crontab', 'mount',
+                        'umount', 'fdisk', 'parted', 'lsblk', 'blkid'
+                    ]
+                    
+                    # コマンド文字列を分析
+                    import shlex
+                    try:
+                        # shellexでコマンドを解析
+                        tokens = shlex.split(command_str.replace('&', ' ').replace(';', ' ').replace('|', ' '))
+                        
+                        for token in tokens:
+                            # 各トークンが危険なコマンドかチェック
+                            cmd_name = token.split()[0] if ' ' in token else token
+                            cmd_base = cmd_name.lower().strip()
+                            
+                            # 危険なコマンドが含まれているかチェック
+                            if any(dangerous in cmd_base for dangerous in dangerous_commands):
+                                return f"Command '{cmd_base}' is not allowed for security reasons."
+                            
+                            # パスやスクリプト実行を防ぐ
+                            if '/' in cmd_base or '\\' in cmd_base or '.' in cmd_base:
+                                if not any(allowed in cmd_base for allowed in allowed_commands):
+                                    return f"Path-based execution '{cmd_base}' is not allowed."
+                        
+                        return None  # 問題なし
+                        
+                    except Exception:
+                        # 解析エラーの場合は安全のため拒否
+                        return "Command parsing failed, execution blocked for security."
+                
+                # コマンドフィルタリングを実行
+                filter_result = filter_dangerous_commands(cmd)
+                if filter_result:
+                    ping_result = f"🚫 {filter_result}"
+                else:
+                    # 許可されたコマンドのみ実行
+                    print(f"[VULN] Executing filtered command: {cmd}")  # デバッグ用
+                    result = subprocess.check_output(cmd, shell=True, text=True, timeout=15)
+                    ping_result = result
+                    
             except subprocess.CalledProcessError as e:
                 ping_result = f"Ping command failed (exit code {e.returncode}):\n{e.output if e.output else 'No output'}"
             except subprocess.TimeoutExpired:
-                ping_result = f"Ping timeout: Command took longer than 10 seconds"
+                ping_result = f"Ping timeout: Command took longer than 15 seconds"
             except Exception as e:
                 ping_result = f"Ping failed: {str(e)}"
         
