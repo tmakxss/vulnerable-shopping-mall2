@@ -284,8 +284,10 @@ def admin_orders():
                 try:
                     from app.utils import db_manager
                     orders_raw = db_manager.execute_query(query, fetch_all=True)
-                except:
-                    orders_raw = []
+                except Exception as e:
+                    # エラー時は特別なマーカーを含む空の結果を返す
+                    print(f"SQL Error: {e}")
+                    orders_raw = [{'error': True, 'message': str(e)}]
             else:
                 orders_raw = safe_database_query("""
                     SELECT o.id, o.user_id, o.total_amount, o.status, 
@@ -303,6 +305,10 @@ def admin_orders():
             # テンプレート互換性のため配列形式に変換
             all_orders = []
             if orders_raw and isinstance(orders_raw, list):
+                # SQLエラーの場合は特別な処理
+                if len(orders_raw) > 0 and isinstance(orders_raw[0], dict) and orders_raw[0].get('error'):
+                    return f"データベースエラーが発生しました: {orders_raw[0].get('message', '不明なエラー')}"
+                
                 for order in orders_raw:
                     if isinstance(order, dict):
                         order_array = [
