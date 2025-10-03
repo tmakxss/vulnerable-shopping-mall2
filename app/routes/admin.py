@@ -542,10 +542,20 @@ def add_product():
                     file.save(file_path)
                     image_url = f'/static/uploads/{filename}'
                 
-                safe_database_query(
+                result = safe_database_query(
                     "INSERT INTO products (name, description, price, stock, category, image_url) VALUES (%s, %s, %s, %s, %s, %s)",
                     (name, description, price, stock, category, image_url)
                 )
+                
+                print(f"商品追加結果: {result}")  # デバッグ用
+                
+                # 追加確認
+                verify_result = safe_database_query(
+                    "SELECT COUNT(*) FROM products WHERE name = %s",
+                    (name,),
+                    fetch_one=True
+                )
+                print(f"追加確認: {verify_result}")  # デバッグ用
                 
                 flash('商品を追加しました', 'success')
                 return redirect('/admin/products')

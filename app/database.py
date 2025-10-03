@@ -91,40 +91,56 @@ class DatabaseManager:
 
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
         """クエリを実行"""
+        conn = None
         try:
             # クエリとパラメータを変換
             converted_query, converted_params = self._convert_query_params(query, params)
             
             conn = self.get_connection()
-            try:
-                cursor = conn.cursor()
+            cursor = conn.cursor()
+            
+            print(f"Executing query: {converted_query}")  # デバッグ用
+            print(f"With params: {converted_params}")  # デバッグ用
+            
+            if converted_params:
+                cursor.execute(converted_query, converted_params)
+            else:
+                cursor.execute(converted_query)
+            
+            if fetch_one:
+                result = cursor.fetchone()
+                if result:
+                    columns = [desc[0] for desc in cursor.description]
+                    return self._process_row(result, columns)
+                return None
+            elif fetch_all:
+                results = cursor.fetchall()
+                if results:
+                    columns = [desc[0] for desc in cursor.description]
+                    return [self._process_row(row, columns) for row in results]
+                return []
+            else:
+                # INSERT/UPDATE/DELETE操作の場合
+                conn.commit()
+                affected_rows = cursor.rowcount
+                print(f"Committed to database, affected rows: {affected_rows}")  # デバッグ用
+                return affected_rows
                 
-                if converted_params:
-                    cursor.execute(converted_query, converted_params)
-                else:
-                    cursor.execute(converted_query)
-                
-                if fetch_one:
-                    result = cursor.fetchone()
-                    if result:
-                        columns = [desc[0] for desc in cursor.description]
-                        return self._process_row(result, columns)
-                    return None
-                elif fetch_all:
-                    results = cursor.fetchall()
-                    if results:
-                        columns = [desc[0] for desc in cursor.description]
-                        return [self._process_row(row, columns) for row in results]
-                    return []
-                else:
-                    conn.commit()
-                    return cursor.rowcount
-            finally:
-                conn.close()
         except Exception as e:
             print(f"Database query error: {e}")
+            if conn:
+                try:
+                    conn.rollback()
+                    print("Transaction rolled back")
+                except:
+                    pass
             return None if fetch_one else ([] if fetch_all else 0)
-            return [] if fetch_all else None
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
     
     def execute_script(self, script):
         """スクリプトを実行（初期化用）"""
