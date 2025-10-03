@@ -7,20 +7,20 @@ content %}
     <div class="col-md-8">
       <form method="POST" enctype="multipart/form-data">
         <div class="form-group">
-          <label for="name">商品名 <small class="text-muted">(最大17文字)</small></label>
+          <label for="name">商品名</label>
           <input
             type="text"
             class="form-control"
             id="name"
             name="name"
             value="{{ form_data.name if form_data else '' }}"
-            maxlength="17"
+            maxlength="18"
             required
           />
         </div>
 
         <div class="form-group">
-          <label for="description">説明 <small class="text-success">(XSS対策済み)</small></label>
+          <label for="description">説明</label>
           <textarea
             class="form-control"
             id="description"

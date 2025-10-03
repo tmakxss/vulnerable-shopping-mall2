@@ -8,12 +8,13 @@
     <div class="col-md-8">
       <form method="POST" enctype="multipart/form-data">
         <div class="mb-3">
-          <label for="name" class="form-label">商品名 <small class="text-muted">(最大17文字)</small></label>
-          <input type="text" class="form-control" id="name" name="name" value="{{ product[1] }}" maxlength="17" required>
+          <label for="name" class="form-label">商品名</label>
+          <p class="text-muted">現在: {{ product[1] | safe }}</p>
+          <input type="text" class="form-control" id="name" name="name" value="{{ product[1] }}" maxlength="18" required>
         </div>
         
         <div class="mb-3">
-          <label for="description" class="form-label">説明 <small class="text-success">(XSS対策済み)</small></label>
+          <label for="description" class="form-label">説明</label>
           <textarea class="form-control" id="description" name="description" rows="3" required>{{ product[2] }}</textarea>
         </div>
         
@@ -24,13 +25,13 @@
         
         <div class="mb-3">
           <label for="stock" class="form-label">在庫数</label>
-          <input type="number" class="form-control" id="stock" name="stock" value="{{ product[4] }}" required>
+          <input type="text" class="form-control" id="stock" name="stock" value="{{ product[4] }}" maxlength="17" required>
         </div>
         
         <div class="mb-3">
-          <label for="category" class="form-label">カテゴリ <small class="text-muted">(最大17文字)</small></label>
+          <label for="category" class="form-label">カテゴリ</label>
+          <p class="text-muted">現在: {{ product[5] | safe }}</p>
           <input type="text" class="form-control" id="category" name="category" value="{{ product[5] }}" maxlength="17" required>
-          <small class="form-text text-muted">自由入力可能</small>
         </div>
         
         <div class="mb-3">
