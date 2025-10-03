@@ -528,9 +528,11 @@ def contact():
         print(f"[CSRF BYPASS] GET パラメーター検出: title={title}, email={email}, content={content}")
         
         if title and content and email:
+            # 通常パラメーターはサニタイズを適用（XSS対策）
+            safe_title = html.escape(title)
             # 脆弱性：GETリクエストではCSRFトークン検証をスキップ
-            flash(f'お問い合わせ「{title}」を送信しました。', 'success')
-            print(f"[CSRF BYPASS] 送信成功: {title}")
+            flash(f'お問い合わせ「{safe_title}」を送信しました。', 'success')
+            print(f"[CSRF BYPASS] 送信成功: {title} -> サニタイズ後: {safe_title}")
         else:
             flash(f'一部の項目が不足しています。送信に失敗しました。', 'warning')
             print(f"[CSRF BYPASS] 送信失敗: 不完全なパラメーター")
@@ -590,8 +592,11 @@ def contact():
         email = request.form.get('email')
         
         if title and content and email:
+            # 通常パラメーターはサニタイズを適用（XSS対策）
+            safe_title = html.escape(title)
             # お問い合わせ処理（デモ版のためスキップ）
-            flash(f'お問い合わせ「{title}」を送信しました。', 'success')
+            flash(f'お問い合わせ「{safe_title}」を送信しました。', 'success')
+            print(f"[POST SAFE] 送信成功: {title} -> サニタイズ後: {safe_title}")
             # 送信後は新しいトークンを生成せずにリダイレクト
             return redirect('/contact')
         else:
