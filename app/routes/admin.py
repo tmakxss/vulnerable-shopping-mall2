@@ -537,17 +537,22 @@ def add_product():
                 # バリデーションエラーメッセージ
                 validation_errors = []
                 
-                # name: 17文字制限、サニタイズなし（XSS脆弱性）
-                if len(name) > 17:
-                    validation_errors.append('商品名は17文字以内で入力してください')
+                # name: 18文字制限、サニタイズなし
+                if len(name) > 18:
+                    validation_errors.append('商品名は18文字以内で入力してください')
                 
-                # description: サニタイズあり（XSS対策済み）
+                # description: サニタイズあり
                 import html
                 description_sanitized = html.escape(description)
                 
-                # category: 17文字制限、サニタイズなし（XSS脆弱性）
+                # category: 17文字制限、サニタイズなし
                 if len(category) > 17:
                     validation_errors.append('カテゴリは17文字以内で入力してください')
+                
+                # stock: 17文字制限、サニタイズなし
+                stock_str = str(stock) if stock else ''
+                if len(stock_str) > 17:
+                    validation_errors.append('在庫数は17文字以内で入力してください')
                 
                 # バリデーションエラーがある場合は追加画面に戻る
                 if validation_errors:
@@ -600,17 +605,22 @@ def edit_product(product_id):
                 # バリデーションエラーメッセージ
                 validation_errors = []
                 
-                # name: 17文字制限、サニタイズなし（XSS脆弱性）
-                if len(name) > 17:
-                    validation_errors.append('商品名は17文字以内で入力してください')
+                # name: 18文字制限、サニタイズなし
+                if len(name) > 18:
+                    validation_errors.append('商品名は18文字以内で入力してください')
                 
-                # description: サニタイズあり（XSS対策済み）
+                # description: サニタイズあり
                 import html
                 description_sanitized = html.escape(description)
                 
-                # category: 17文字制限、サニタイズなし（XSS脆弱性）
+                # category: 17文字制限、サニタイズなし
                 if len(category) > 17:
                     validation_errors.append('カテゴリは17文字以内で入力してください')
+                
+                # stock: 17文字制限、サニタイズなし
+                stock_str = str(stock) if stock else ''
+                if len(stock_str) > 17:
+                    validation_errors.append('在庫数は17文字以内で入力してください')
                 
                 # バリデーションエラーがある場合は編集画面に戻る
                 if validation_errors:
@@ -623,11 +633,11 @@ def edit_product(product_id):
                     if product_dict:
                         product = [
                             product_dict.get('id', ''),
-                            name,  # 入力された値を保持（サニタイズなし）
-                            description,  # 元の値を保持
+                            name,
+                            description,
                             product_dict.get('price', ''),
-                            product_dict.get('stock', ''),
-                            category,  # 入力された値を保持（サニタイズなし）
+                            stock,
+                            category,
                             product_dict.get('image_url', ''),
                             product_dict.get('created_at', '')
                         ]
@@ -644,13 +654,11 @@ def edit_product(product_id):
                     file_path = os.path.join('app/static/uploads', filename)
                     file.save(file_path)
                     image_url = f'/static/uploads/{filename}'
-                    # name, categoryはサニタイズなし（脆弱性）、descriptionはサニタイズ済み
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s, image_url=%s WHERE id=%s",
                         (name, description_sanitized, price, stock, category, image_url, product_id)
                     )
                 else:
-                    # name, categoryはサニタイズなし（脆弱性）、descriptionはサニタイズ済み
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s WHERE id=%s",
                         (name, description_sanitized, price, stock, category, product_id)

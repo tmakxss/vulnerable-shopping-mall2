@@ -49,13 +49,10 @@ content %}
                   {% for product in products %}
         <tr>
           <td>{{ product[0] }}</td>
-          <!-- 商品名（サニタイズなし - XSS脆弱性） -->
           <td>{{ product[1] | safe }}</td>
-          <!-- 説明（サニタイズ済み - XSS対策済み） -->
           <td>{{ product[2] }}</td>
           <td>¥{{ product[3] | int }}</td>
-          <td>{{ product[4] }}</td>
-          <!-- カテゴリ（サニタイズなし - XSS脆弱性） -->
+          <td>{{ product[4] | safe }}</td>
           <td>{{ product[5] | safe }}</td>
           <td>
             {% if product[6] %}
