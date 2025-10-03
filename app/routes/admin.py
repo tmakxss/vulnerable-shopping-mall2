@@ -794,7 +794,12 @@ def edit_review(review_id):
                         """, (submitted_token,))
                         
                         rating = request.form.get('rating')
-                        comment = request.form.get('comment')
+                        comment = request.form.get('comment', '')
+                        
+                        # comment パラメータのブロックリスト検証
+                        if '<' in comment or '>' in comment:
+                            flash('コメントに使用できない文字が含まれています', 'danger')
+                            return redirect(f'/admin/reviews/edit/{review_id}')
                         
                         safe_database_query(
                             "UPDATE reviews SET rating=%s, comment=%s WHERE id=%s",
@@ -802,7 +807,9 @@ def edit_review(review_id):
                         )
                         
                         flash('レビューを更新しました', 'success')
-                        return redirect('/admin/reviews')
+                        # コメント内容をURLパラメータで渡す
+                        from urllib.parse import quote
+                        return redirect(f'/admin/reviews?updated_comment={quote(comment or "")}')
                     else:
                         flash('無効なCSRFトークンです', 'danger')
                         return redirect('/admin/reviews')
