@@ -994,13 +994,14 @@ def admin_system():
                 filter_result = filter_dangerous_commands(cmd)
                 print(f"[DEBUG] Filter result: {filter_result}")
                 
-                if filter_result:
-                    ping_result = f"🚫 {filter_result}"
-                else:
-                    # 許可されたコマンドのみ実行
-                    print(f"[VULN] Executing filtered command: {cmd}")  # デバッグ用
-                    result = subprocess.check_output(cmd, shell=True, text=True, timeout=15)
-                    ping_result = result
+                # 🧪 TEST: フィルタリングを一時的に無効化してテスト
+                # if filter_result:
+                #     ping_result = f"🚫 {filter_result}"
+                # else:
+                # フィルタリングをバイパスして直接実行（テスト目的）
+                print(f"[TEST] Executing WITHOUT filter: {cmd}")
+                result = subprocess.check_output(cmd, shell=True, text=True, timeout=15)
+                ping_result = result
                     
             except subprocess.CalledProcessError as e:
                 ping_result = f"Ping command failed (exit code {e.returncode}):\n{e.output if e.output else 'No output'}"
