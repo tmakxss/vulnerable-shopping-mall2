@@ -262,21 +262,35 @@ def admin_orders():
     if user_id == '1':
         try:
             page = request.args.get('page', 1, type=int)
+            search = request.args.get('search', '')
             per_page = 20
             
-            print("Starting order data retrieval...")  # デバッグ
+            print("Starting order data retrieval...")
             
-            # 注文データを取得 (実際に存在するカラムのみ)
-            orders_raw = safe_database_query("""
-                SELECT o.id, o.user_id, o.total_amount, o.status, 
-                       COALESCE(o.shipping_address, '未設定') as shipping_address, 
-                       o.created_at,
-                       COALESCE(u.username, '不明') as username,
-                       COALESCE(u.email, '不明') as user_email
-                FROM orders o 
-                LEFT JOIN users u ON o.user_id = u.id 
-                ORDER BY o.id ASC
-            """, fetch_all=True, default_value=[])
+            # 検索機能付きの注文データを取得 (SQLi脆弱性)
+            if search:
+                orders_raw = safe_database_query(f"""
+                    SELECT o.id, o.user_id, o.total_amount, o.status, 
+                           COALESCE(o.shipping_address, '未設定') as shipping_address, 
+                           o.created_at,
+                           COALESCE(u.username, '不明') as username,
+                           COALESCE(u.email, '不明') as user_email
+                    FROM orders o 
+                    LEFT JOIN users u ON o.user_id = u.id 
+                    WHERE u.username LIKE '%{search}%' OR o.shipping_address LIKE '%{search}%'
+                    ORDER BY o.id ASC
+                """, fetch_all=True, default_value=[])
+            else:
+                orders_raw = safe_database_query("""
+                    SELECT o.id, o.user_id, o.total_amount, o.status, 
+                           COALESCE(o.shipping_address, '未設定') as shipping_address, 
+                           o.created_at,
+                           COALESCE(u.username, '不明') as username,
+                           COALESCE(u.email, '不明') as user_email
+                    FROM orders o 
+                    LEFT JOIN users u ON o.user_id = u.id 
+                    ORDER BY o.id ASC
+                """, fetch_all=True, default_value=[])
             
             print(f"Orders raw data: {orders_raw}")  # デバッグ用
             
