@@ -703,6 +703,17 @@ def admin_reviews():
     
     if user_id == '1':
         try:
+            # updated_comment パラメーターの文字フィルタリング (JavaScript反射XSS専用)
+            updated_comment = request.args.get('updated_comment', '')
+            if updated_comment:
+                # >, <, - の文字をブロック (HTMLタグやコメントを防ぐ)
+                blocked_chars = ['>', '<', '-']
+                for char in blocked_chars:
+                    if char in updated_comment:
+                        # ブロックされた文字が含まれている場合はパラメーターを無効化
+                        updated_comment = ''
+                        break
+            
             search = request.args.get('search', '')
             try:
                 page = int(request.args.get('page', '1'))
