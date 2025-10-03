@@ -193,7 +193,7 @@ def edit_user(user_id):
                         ]
                         return render_template('admin/edit_user.html', user=user, error_address=address)
                 
-                phone_blocked_chars = ['><', '"']
+                phone_blocked_chars = ['>', '<', '"']
                 for blocked in phone_blocked_chars:
                     if phone and blocked.lower() in phone.lower():
                         user_dict = safe_database_query(
