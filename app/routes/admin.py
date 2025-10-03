@@ -463,18 +463,17 @@ def admin_products():
             # テンプレート互換性のため配列形式に変換
             all_products = []
             if products_raw and isinstance(products_raw, list):
-                for i, product in enumerate(products_raw, 1):
+                for product in products_raw:
                     if isinstance(product, dict):
                         product_array = [
-                            i,  # 0: row_num
-                            product.get('id', 0),               # 1: ID
-                            product.get('name', ''),            # 2: 名前
-                            product.get('description', ''),     # 3: 説明
-                            float(product.get('price', 0)) if product.get('price') is not None else 0.0,  # 4: 価格
-                            product.get('stock', 0),            # 5: 在庫
-                            product.get('category', ''),        # 6: カテゴリ
-                            product.get('image_url', ''),       # 7: 画像URL
-                            product.get('created_at', '')       # 8: 作成日
+                            product.get('id', 0),               # 0: ID
+                            product.get('name', ''),            # 1: 名前
+                            product.get('description', ''),     # 2: 説明
+                            float(product.get('price', 0)) if product.get('price') is not None else 0.0,  # 3: 価格
+                            product.get('stock', 0),            # 4: 在庫
+                            product.get('category', ''),        # 5: カテゴリ
+                            product.get('image_url', ''),       # 6: 画像URL
+                            product.get('created_at', '')       # 7: 作成日
                         ]
                         all_products.append(product_array)
             
