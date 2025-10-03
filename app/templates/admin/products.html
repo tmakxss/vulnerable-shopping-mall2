@@ -49,29 +49,32 @@ content %}
                   {% for product in products %}
         <tr>
           <td>{{ product[0] }}</td>
+          <!-- 商品名（サニタイズなし - XSS脆弱性） -->
+          <td>{{ product[1] | safe }}</td>
+          <!-- 説明（サニタイズ済み - XSS対策済み） -->
           <td>{{ product[2] }}</td>
-          <td>{{ product[3] }}</td>
-          <td>¥{{ product[4] | int }}</td>
-          <td>{{ product[5] }}</td>
-          <td>{{ product[6] }}</td>
+          <td>¥{{ product[3] | int }}</td>
+          <td>{{ product[4] }}</td>
+          <!-- カテゴリ（サニタイズなし - XSS脆弱性） -->
+          <td>{{ product[5] | safe }}</td>
           <td>
-            {% if product[7] %}
+            {% if product[6] %}
             <img
-              src="{{ product[7] }}"
-              alt="{{ product[2] }}"
+              src="{{ product[6] }}"
+              alt="{{ product[1] }}"
               style="width: 50px; height: 50px; object-fit: cover"
             />
             {% else %} - {% endif %}
           </td>
-          <td>{{ product[8] }}</td>
+          <td>{{ product[7] }}</td>
           <td>
             <a
-              href="/admin/products/edit/{{ product[1] }}"
+              href="/admin/products/edit/{{ product[0] }}"
               class="btn btn-warning btn-sm"
               >編集</a
             >
             <a
-              href="/admin/products/delete/{{ product[1] }}"
+              href="/admin/products/delete/{{ product[0] }}"
               class="btn btn-danger btn-sm"
               onclick="return confirm('本当にこの商品を削除しますか？')"
               >削除</a

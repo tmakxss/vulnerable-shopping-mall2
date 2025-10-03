@@ -99,9 +99,6 @@ class DatabaseManager:
             conn = self.get_connection()
             cursor = conn.cursor()
             
-            print(f"Executing query: {converted_query}")  # デバッグ用
-            print(f"With params: {converted_params}")  # デバッグ用
-            
             if converted_params:
                 cursor.execute(converted_query, converted_params)
             else:
@@ -123,7 +120,6 @@ class DatabaseManager:
                 # INSERT/UPDATE/DELETE操作の場合
                 conn.commit()
                 affected_rows = cursor.rowcount
-                print(f"Committed to database, affected rows: {affected_rows}")  # デバッグ用
                 return affected_rows
                 
         except Exception as e:
@@ -131,7 +127,6 @@ class DatabaseManager:
             if conn:
                 try:
                     conn.rollback()
-                    print("Transaction rolled back")
                 except:
                     pass
             return None if fetch_one else ([] if fetch_all else 0)

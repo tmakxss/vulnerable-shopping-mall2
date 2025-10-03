@@ -527,11 +527,35 @@ def add_product():
     if user_id == '1':
         if request.method == 'POST':
             try:
-                name = request.form.get('name')
-                description = request.form.get('description')
+                # 商品追加における脆弱性実装
+                name = request.form.get('name', '')
+                description = request.form.get('description', '')
                 price = request.form.get('price')
                 stock = request.form.get('stock')
-                category = request.form.get('category')
+                category = request.form.get('category', '')
+                
+                # バリデーションエラーメッセージ
+                validation_errors = []
+                
+                # name: 17文字制限、サニタイズなし（XSS脆弱性）
+                if len(name) > 17:
+                    validation_errors.append('商品名は17文字以内で入力してください')
+                
+                # description: サニタイズあり（XSS対策済み）
+                import html
+                description_sanitized = html.escape(description)
+                
+                # category: 17文字制限、サニタイズなし（XSS脆弱性）
+                if len(category) > 17:
+                    validation_errors.append('カテゴリは17文字以内で入力してください')
+                
+                # バリデーションエラーがある場合は追加画面に戻る
+                if validation_errors:
+                    for error in validation_errors:
+                        flash(error, 'danger')
+                    return render_template('admin/add_product.html', 
+                                         form_data={'name': name, 'description': description, 
+                                                  'price': price, 'stock': stock, 'category': category})
                 
                 file = request.files.get('image')
                 image_url = ''
@@ -542,20 +566,11 @@ def add_product():
                     file.save(file_path)
                     image_url = f'/static/uploads/{filename}'
                 
+                # name, categoryはサニタイズなし（脆弱性）、descriptionはサニタイズ済み
                 result = safe_database_query(
                     "INSERT INTO products (name, description, price, stock, category, image_url) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (name, description, price, stock, category, image_url)
+                    (name, description_sanitized, price, stock, category, image_url)
                 )
-                
-                print(f"商品追加結果: {result}")  # デバッグ用
-                
-                # 追加確認
-                verify_result = safe_database_query(
-                    "SELECT COUNT(*) FROM products WHERE name = %s",
-                    (name,),
-                    fetch_one=True
-                )
-                print(f"追加確認: {verify_result}")  # デバッグ用
                 
                 flash('商品を追加しました', 'success')
                 return redirect('/admin/products')
@@ -575,11 +590,52 @@ def edit_product(product_id):
     if user_id == '1':
         try:
             if request.method == 'POST':
-                name = request.form.get('name')
-                description = request.form.get('description')
+                # 商品編集における脆弱性実装
+                name = request.form.get('name', '')
+                description = request.form.get('description', '')
                 price = request.form.get('price')
                 stock = request.form.get('stock')
-                category = request.form.get('category')
+                category = request.form.get('category', '')
+                
+                # バリデーションエラーメッセージ
+                validation_errors = []
+                
+                # name: 17文字制限、サニタイズなし（XSS脆弱性）
+                if len(name) > 17:
+                    validation_errors.append('商品名は17文字以内で入力してください')
+                
+                # description: サニタイズあり（XSS対策済み）
+                import html
+                description_sanitized = html.escape(description)
+                
+                # category: 17文字制限、サニタイズなし（XSS脆弱性）
+                if len(category) > 17:
+                    validation_errors.append('カテゴリは17文字以内で入力してください')
+                
+                # バリデーションエラーがある場合は編集画面に戻る
+                if validation_errors:
+                    product_dict = safe_database_query(
+                        "SELECT id, name, description, price, stock, category, image_url, created_at FROM products WHERE id = %s",
+                        (product_id,),
+                        fetch_one=True
+                    )
+                    
+                    if product_dict:
+                        product = [
+                            product_dict.get('id', ''),
+                            name,  # 入力された値を保持（サニタイズなし）
+                            description,  # 元の値を保持
+                            product_dict.get('price', ''),
+                            product_dict.get('stock', ''),
+                            category,  # 入力された値を保持（サニタイズなし）
+                            product_dict.get('image_url', ''),
+                            product_dict.get('created_at', '')
+                        ]
+                        
+                        for error in validation_errors:
+                            flash(error, 'danger')
+                        
+                        return render_template('admin/edit_product.html', product=product)
                 
                 file = request.files.get('image')
                 
@@ -588,14 +644,16 @@ def edit_product(product_id):
                     file_path = os.path.join('app/static/uploads', filename)
                     file.save(file_path)
                     image_url = f'/static/uploads/{filename}'
+                    # name, categoryはサニタイズなし（脆弱性）、descriptionはサニタイズ済み
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s, image_url=%s WHERE id=%s",
-                        (name, description, price, stock, category, image_url, product_id)
+                        (name, description_sanitized, price, stock, category, image_url, product_id)
                     )
                 else:
+                    # name, categoryはサニタイズなし（脆弱性）、descriptionはサニタイズ済み
                     safe_database_query(
                         "UPDATE products SET name=%s, description=%s, price=%s, stock=%s, category=%s WHERE id=%s",
-                        (name, description, price, stock, category, product_id)
+                        (name, description_sanitized, price, stock, category, product_id)
                     )
                 
                 flash('商品を更新しました', 'success')
