@@ -174,7 +174,7 @@ def edit_user(user_id):
                 is_admin_check = request.form.get('is_admin') == 'on'
                 new_password = request.form.get('new_password')
                 
-                blocked_chars = ['><', '<script', '</script', 'javascript:', 'onclick', 'onload', '/']
+                blocked_chars = ['><', '<script', '</script', 'javascript:', 'onclick', 'onload', '/', '-']
                 for blocked in blocked_chars:
                     if address and blocked.lower() in address.lower():
                         user_dict = safe_database_query(
