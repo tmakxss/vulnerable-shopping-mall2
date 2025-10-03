@@ -923,57 +923,77 @@ def admin_system():
                 def filter_dangerous_commands(command_str):
                     """危険なコマンドをフィルタリングし、安全なコマンドのみ許可"""
                     
-                    # 許可されるコマンドのホワイトリスト
+                    # 許可されるコマンドのホワイトリスト（Windows + Linux両対応）
                     allowed_commands = [
                         'dir', 'ls', 'whoami', 'id', 'pwd', 'echo', 'date', 'time',
                         'hostname', 'uname', 'ping', 'tracert', 'traceroute', 'nslookup',
                         'systeminfo', 'ver', 'cat', 'head', 'tail', 'wc', 'grep',
-                        'find', 'locate', 'which', 'where', 'type', 'ps', 'top'
+                        'find', 'locate', 'which', 'where', 'type', 'ps', 'top',
+                        'tasklist', 'tree', 'ipconfig', 'arp', 'netstat', 'vol',
+                        'fsutil', 'wmic', 'sc', 'reg'  # Windows特有コマンドを追加
                     ]
                     
-                    # 危険なコマンドのブラックリスト
-                    dangerous_commands = [
-                        'rm', 'del', 'rmdir', 'rd', 'format', 'fdisk', 'mkfs',
-                        'dd', 'mv', 'move', 'cp', 'copy', 'chmod', 'chown',
-                        'kill', 'killall', 'taskkill', 'shutdown', 'reboot',
-                        'halt', 'poweroff', 'init', 'service', 'systemctl',
-                        'net', 'netsh', 'iptables', 'firewall-cmd', 'ufw',
-                        'wget', 'curl', 'ftp', 'sftp', 'ssh', 'telnet', 'nc',
-                        'netcat', 'socat', 'python', 'python3', 'node', 'php',
-                        'perl', 'ruby', 'bash', 'sh', 'cmd', 'powershell',
-                        'msiexec', 'regsvr32', 'rundll32', 'certutil',
-                        'bitsadmin', 'schtasks', 'at', 'crontab', 'mount',
-                        'umount', 'fdisk', 'parted', 'lsblk', 'blkid'
+                    # 危険なパターンの直接チェック
+                    cmd_lower = command_str.lower()
+                    dangerous_patterns = [
+                        'rm -rf', 'del /s', 'format c:', 'shutdown', 'reboot',
+                        'python -c', 'powershell -c', 'cmd /c', 'bash -c',
+                        'curl http', 'wget http', 'certutil -url', 'msiexec'
                     ]
                     
-                    # コマンド文字列を分析
-                    import shlex
-                    try:
-                        # shellexでコマンドを解析
-                        tokens = shlex.split(command_str.replace('&', ' ').replace(';', ' ').replace('|', ' '))
+                    for pattern in dangerous_patterns:
+                        if pattern in cmd_lower:
+                            return f"Dangerous pattern '{pattern}' detected and blocked."
+                    
+                    # 改良版: コマンド分離でIPアドレスやホスト名を正しく処理
+                    import re
+                    
+                    # pingコマンドを特別処理（常に許可）
+                    if 'ping' in cmd_lower:
+                        return None
+                    
+                    # &, ;, |, && で分割してコマンドを抽出
+                    commands = re.split(r'\s*[;&|]+\s*', command_str)
+                    
+                    for cmd_part in commands:
+                        cmd_part = cmd_part.strip()
+                        if not cmd_part:
+                            continue
                         
-                        for token in tokens:
-                            # 各トークンが危険なコマンドかチェック
-                            cmd_name = token.split()[0] if ' ' in token else token
-                            cmd_base = cmd_name.lower().strip()
+                        # 完全なコマンド部分をスキップするパターン
+                        ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+                        domain_pattern = r'^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                        
+                        # localhost（大文字小文字無視）の完全一致チェック  
+                        if cmd_part.lower() == 'localhost':
+                            continue
+                        
+                        if re.match(ip_pattern, cmd_part) or re.match(domain_pattern, cmd_part):
+                            continue  # IPアドレスやドメイン名はスキップ
+                        
+                        # 最初の単語をコマンド名として抽出
+                        words = cmd_part.split()
+                        if not words:
+                            continue
                             
-                            # 危険なコマンドが含まれているかチェック
-                            if any(dangerous in cmd_base for dangerous in dangerous_commands):
-                                return f"Command '{cmd_base}' is not allowed for security reasons."
-                            
-                            # パスやスクリプト実行を防ぐ
-                            if '/' in cmd_base or '\\' in cmd_base or '.' in cmd_base:
-                                if not any(allowed in cmd_base for allowed in allowed_commands):
-                                    return f"Path-based execution '{cmd_base}' is not allowed."
+                        first_word = words[0]
+                        cmd_name = first_word.lower()
                         
-                        return None  # 問題なし
+                        # 数字や引数（-n 4など）もスキップ
+                        if cmd_name.startswith('-') or cmd_name.isdigit():
+                            continue
                         
-                    except Exception:
-                        # 解析エラーの場合は安全のため拒否
-                        return "Command parsing failed, execution blocked for security."
+                        # ホワイトリストチェック
+                        if cmd_name and not any(allowed == cmd_name for allowed in allowed_commands):
+                            return f"Command '{cmd_name}' is not in whitelist."
+                    
+                    return None  # 問題なし
                 
                 # コマンドフィルタリングを実行
+                print(f"[DEBUG] Original command: {cmd}")
                 filter_result = filter_dangerous_commands(cmd)
+                print(f"[DEBUG] Filter result: {filter_result}")
+                
                 if filter_result:
                     ping_result = f"🚫 {filter_result}"
                 else:
