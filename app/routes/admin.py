@@ -186,12 +186,31 @@ def edit_user(user_id):
                             user_dict.get('id', ''),
                             user_dict.get('username', ''), 
                             user_dict.get('email', ''),
-                            address,  # POSTデータを反射
+                            address,
                             user_dict.get('phone', ''),
                             user_dict.get('is_admin', False),
                             user_dict.get('created_at', '')
                         ]
                         return render_template('admin/edit_user.html', user=user, error_address=address)
+                
+                phone_blocked_chars = ['><', '"']
+                for blocked in phone_blocked_chars:
+                    if phone and blocked.lower() in phone.lower():
+                        user_dict = safe_database_query(
+                            "SELECT id, username, email, address, phone, is_admin, created_at FROM users WHERE id = %s",
+                            (user_id,),
+                            fetch_one=True
+                        )
+                        user = [
+                            user_dict.get('id', ''),
+                            user_dict.get('username', ''), 
+                            user_dict.get('email', ''),
+                            user_dict.get('address', ''),
+                            phone,
+                            user_dict.get('is_admin', False),
+                            user_dict.get('created_at', '')
+                        ]
+                        return render_template('admin/edit_user.html', user=user, error_phone=phone)
                 
                 if new_password:
                     safe_database_query(

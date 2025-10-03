@@ -69,6 +69,10 @@ content %}
             name="phone"
             value="{{ user[4] or '' }}"
           />
+          <script>
+            var phoneData = '{{ error_phone or user[4] or '' }}';
+            console.log('Phone validation for:', phoneData);
+          </script>
         </div>
 
         <div class="mb-3">
